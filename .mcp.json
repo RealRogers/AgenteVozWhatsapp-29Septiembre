@@ -1,0 +1,100 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp"
+    },
+    "insforge": {
+      "disabled": true,
+      "command": "npx",
+      "args": ["-y", "@insforge/mcp@latest"],
+      "env": {
+        "INSFORGE_API_KEY": "TU_API_KEY",
+        "INSFORGE_API_URL": "https://tu-proyecto.insforge.app"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "next-devtools": {
+      "command": "npx",
+      "args": ["-y", "next-devtools-mcp@latest"]
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "svgmaker": {
+      "command": "npx",
+      "args": ["-y", "svgmaker-mcp@latest"],
+      "env": {
+        "SVGMAKER_API_KEY": "TU_API_KEY"
+      }
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer TU_GITHUB_TOKEN"
+      }
+    },
+    "stripe": {
+      "type": "http",
+      "url": "https://mcp.stripe.com"
+    },
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp"
+    },
+    "resend": {
+      "command": "npx",
+      "args": ["-y", "resend-mcp@latest"],
+      "env": {
+        "RESEND_API_KEY": "TU_RESEND_API_KEY"
+      }
+    },
+    "perplexity": {
+      "command": "npx",
+      "args": ["-y", "@perplexity-ai/mcp-server"],
+      "env": {
+        "PERPLEXITY_API_KEY": "TU_API_KEY"
+      }
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "TU_BRAVE_API_KEY"
+      }
+    },
+    "firecrawl-mcp": {
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp@latest"],
+      "env": {
+        "FIRECRAWL_API_KEY": "TU_FIRECRAWL_API_KEY"
+      }
+    },
+    "n8n-mcp": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", "--init",
+        "-e", "N8N_API_URL",
+        "-e", "N8N_API_KEY",
+        "ghcr.io/czlonkowski/n8n-mcp:latest"
+      ],
+      "env": {
+        "N8N_API_URL": "https://tu-n8n.example.com",
+        "N8N_API_KEY": "TU_N8N_API_KEY"
+      }
+    }
+  }
+}

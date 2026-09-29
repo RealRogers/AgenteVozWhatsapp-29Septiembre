@@ -46,7 +46,10 @@ Reglas de dependencia observadas:
 │   └── settings.json            # Permisos pre-aprobados para el instalador (Claude Code)
 ├── .env.local.example           # Template de variables de entorno (se commitea a propósito)
 ├── .gitignore
+├── .mcp.json                    # Plantillas de servidores MCP (supabase, github, stripe,
+│                                #   playwright, n8n, …) — placeholders, sin secrets
 ├── COMPONENT_RULES.md           # Design system: Glass + Electric Lime, tokens, motion, 4 estados
+├── Estructura.md                # Este documento — mapa anotado del codebase
 ├── INSTALAR.md                  # Guía de instalación one-click para agentes (~700 líneas)
 ├── LICENSE                      # MIT
 ├── README.md
@@ -62,7 +65,8 @@ Reglas de dependencia observadas:
 ├── tsconfig.json
 │
 ├── public/
-│   └── avatars/                 # Avatares predefinidos para agentes (ana, mateo, valeria, setter, …)
+│   └── avatars/                 # Avatares predefinidos para agentes
+│                                #   (agendamiento, ana, mateo, setter, soporte, valeria)
 │
 ├── scripts/
 │   ├── setup.mjs                # Orquestador de instalación: env, db-push, cron, vercel, doctor…
@@ -121,19 +125,26 @@ Reglas de dependencia observadas:
     │           └── templates/ (+ generate, library, submit, sync) # Templates de Meta
     │
     ├── features/
-    │   ├── .template/           # Scaffolding de feature (components/hooks/services/store/types)
+    │   ├── .template/           # Scaffolding de feature (README + components/hooks/services/store/types)
     │   ├── auth/                # Formularios, server actions, signup-gate
-    │   ├── agency/              # Tabla de workspaces, members sheet; agency-actions (server)
+    │   ├── agency/              # workspaces-table, create-workspace-sheet, members-sheet;
+    │   │                    #   agency-actions (server: crear workspace, miembros, resets)
     │   ├── workspace/           # Workspace switcher, active-workspace
     │   ├── onboarding/          # Wizard + prompts semilla por caso de uso
     │   ├── dashboard/           # Métricas del workspace
-    │   ├── settings/            # Tabs de settings + automation-actions, template-form
+    │   ├── settings/            # Tabs de settings: settings-shell, integrations (provider picker,
+    │   │                    #   whatsapp-preview), kb-tab, templates (templates-tab,
+    │   │                    #   template-form-sheet, ai-template-generator), automations
+    │   │                    #   (automations-tab + rule-form), n8n-tools (+ form), team-tab,
+    │   │                    #   business-info-form, tools-catalog + tool-config-panel,
+    │   │                    #   cost-calculator; services: automation-actions; lib: template-form
     │   ├── ui-kit/              # Showcase components, motion system (durations/easing), feedback panel
     │   │
     │   ├── inbox/               # ★ Motor del producto
-    │   │   ├── components/      # inbox-layout, chat-thread, chat-message, conversation-item,
-    │   │   │                    #   crm-panel, observability-panel, template-picker, window-banner,
-    │   │   │                    #   ai-toggle-button, state-badge, status-icon, role-gate…
+    │   │   ├── components/      # inbox-layout, chat-thread, chat-message, message-attachment,
+    │   │   │                    #   conversation-item, crm-panel, observability-panel,
+    │   │   │                    #   template-picker, window-banner, ai-toggle-button,
+    │   │   │                    #   state-badge, status-icon, role-gate
     │   │   ├── hooks/           # use-realtime-conversations/messages (Supabase Realtime →
     │   │   │                    #   router.refresh debounced), use-ai-toggle, use-handoff-alerts,
     │   │   │                    #   use-role, handoff-alert
@@ -192,8 +203,9 @@ Reglas de dependencia observadas:
     │   │   └── types/           # ConversationRow, MessageRow, ContactRow, handoff types
     │   │
     │   ├── agents/              # Multi-agente por workspace
-    │   │   ├── components/      # agent-card, agent-config-sheet, guided-prompt-editor,
-    │   │   │                    #   model-picker, test-chat-panel, avatar-gallery…
+    │   │   ├── components/      # agents-tab, agent-card, agent-avatar, agent-config-sheet,
+    │   │   │                    #   guided-prompt-editor, setter-advanced-config, model-picker,
+    │   │   │                    #   provider-logos, test-chat-panel, avatar-gallery-picker
     │   │   ├── services/        # active-agent (agente activo del workspace),
     │   │   │                    #   auto-tagging (tags + summary post-respuesta), agent-queries
     │   │   ├── lib/             # model-catalog (catálogo permitido en la key de plataforma),
@@ -208,13 +220,15 @@ Reglas de dependencia observadas:
     │   │   │                    #   reschedule/cancel/list-highlevel, schedule-link,
     │   │   │                    #   handoff-human, echo
     │   │   ├── lib/             # n8n-tool-runner/schema/params/secrets (tools dinámicos
-    │   │   │                    #   por webhook), slots, calendar-id, hl-appointment, tool-config
+    │   │   │                    #   por webhook), slots, calendar-id, hl-appointment,
+    │   │   │                    #   tool-config, beta-tools (tools marcadas beta)
     │   │   └── services/        # tool-configs (enabled por workspace), ssrf-guard
     │   │                        #   (validación de URL + redirects pinned para n8n)
     │   │
     │   └── jev-judge/           # Jev — juez TypeSafe opcional por workspace
     │       ├── judge.ts         # callJev: action, intent, auto-reply prob, opt-out prob
     │       ├── apply.ts         # Aplica el veredicto al batch (JevBatchEffect)
+    │       ├── components/jev-panel.tsx   # UI de settings: on/off, stage, preview
     │       └── schema.ts · prompts.ts · map-judgment.ts · rate-limit.ts · cost.ts ·
     │           samples.ts · observe.ts · preview.ts · usage.ts · uses.ts
     │
@@ -225,6 +239,7 @@ Reglas de dependencia observadas:
     │   ├── branding.ts · utils.ts
     │
     ├── shared/
+    │   ├── README.md                        # Convenciones del código compartido
     │   ├── lib/crypto.ts                    # AES-256-GCM encrypt/decrypt con AAD
     │   ├── lib/integration-secrets.ts       # encrypt/decryptCredentials por workspace+provider
     │   ├── lib/db-errors.ts                 # Detección de RPC faltante (PGRST202) + reporte 1 vez
