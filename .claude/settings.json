@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -v)",
+      "Bash(node --version)",
+      "Bash(node scripts/setup.mjs:*)",
+      "Bash(node scripts/seed-admin.mjs:*)",
+      "Bash(npm install:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm run:*)",
+      "Bash(supabase:*)",
+      "Bash(vercel:*)",
+      "Bash(brew install supabase/tap/supabase)"
+    ]
+  }
+}

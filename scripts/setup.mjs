@@ -1,0 +1,498 @@
+#!/usr/bin/env node
+// ============================================================================
+// scripts/setup.mjs — deterministic installer orchestrator (Node-only, no deps)
+//
+// The agent (see INSTALAR.md) invokes these subcommands for the mechanical work
+// and keeps the interactive bits (asking for keys, vercel login, deploy) to
+// itself. Console output is Spanish (the member reads it); code is English.
+//
+// Commands:
+//   env            Generate secrets + write/update .env.local from pasted keys
+//   db-push [ref]  supabase link (ref derived from the URL) + db push
+//   set-app-url U  Set NEXT_PUBLIC_APP_URL to the prod URL (run after deploy)
+//   cron-sql       Fill supabase/cron/schedule-buffer-flush.sql with real values
+//   vercel-env     Push .env.local vars to Vercel production (best effort)
+//   doctor         Check prerequisites + which keys are still missing
+//   help           Show this usage
+// ============================================================================
+
+import { randomBytes } from "node:crypto";
+import { execSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const ENV_PATH = resolve(ROOT, ".env.local");
+const EXAMPLE_PATH = resolve(ROOT, ".env.local.example");
+const CRON_TPL = resolve(ROOT, "supabase/cron/schedule-buffer-flush.sql");
+const CRON_FILLED = resolve(ROOT, "supabase/cron/schedule-buffer-flush.filled.sql");
+const SUPABASE_API = "https://api.supabase.com"; // Management API base
+
+// Secrets we generate locally — never asked for, never rotated on re-run.
+const GENERATED = {
+  ENCRYPTION_KEY: () => randomBytes(32).toString("base64"),
+  BUFFER_PROCESS_SECRET: () => randomBytes(32).toString("hex"),
+  CRON_SECRET: () => randomBytes(32).toString("hex"),
+};
+
+// Keys the member pastes; the agent passes them as same-named env vars.
+const PASTED = [
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "OPENROUTER_API_KEY",
+  "OPENROUTER_DEFAULT_MODEL",
+];
+// NOTE: YCloud is NOT an env var — each workspace's API key + webhook signing
+// secret live in the app (Settings → Integraciones), encrypted per-tenant.
+
+// ── tiny ui helpers ─────────────────────────────────────────────────────────
+const log = (m) => console.log(m);
+const ok = (m) => console.log(`✅ ${m}`);
+const warn = (m) => console.log(`⚠️  ${m}`);
+function fail(m) {
+  console.error(`❌ ${m}`);
+  process.exit(1);
+}
+
+// A value is a placeholder if it is empty or still carries the example "your-" hint.
+// Generated base64/hex secrets never contain "your-", so re-runs keep them intact.
+const isPlaceholder = (v) => !v || v.trim() === "" || /your-/.test(v);
+
+// ── .env parsing / writing ──────────────────────────────────────────────────
+function parseEnv(text) {
+  const out = {};
+  for (const line of text.split("\n")) {
+    const m = /^([A-Z0-9_]+)=(.*)$/.exec(line);
+    if (m) out[m[1]] = m[2].replace(/\r$/, "");
+  }
+  return out;
+}
+
+function readEnvFile(path) {
+  return existsSync(path) ? parseEnv(readFileSync(path, "utf8")) : {};
+}
+
+// Rewrite .env.local in place, preserving comments/structure from the template,
+// replacing only the KEY=value lines we have a final value for.
+function rewriteEnv(finalValues) {
+  const base = existsSync(ENV_PATH) ? ENV_PATH : EXAMPLE_PATH;
+  if (!existsSync(base)) fail(`No encuentro ${base}. ¿Estás en la raíz del repo?`);
+  const seen = new Set();
+  const lines = readFileSync(base, "utf8").split("\n").map((line) => {
+    const m = /^([A-Z0-9_]+)=(.*)$/.exec(line);
+    if (m && finalValues[m[1]] !== undefined) {
+      seen.add(m[1]);
+      return `${m[1]}=${finalValues[m[1]]}`;
+    }
+    return line;
+  });
+  for (const [k, v] of Object.entries(finalValues)) {
+    if (!seen.has(k)) lines.push(`${k}=${v}`);
+  }
+  writeFileSync(ENV_PATH, lines.join("\n"));
+}
+
+// ── shell helpers ───────────────────────────────────────────────────────────
+function run(cmd, opts = {}) {
+  log(`$ ${cmd}`);
+  execSync(cmd, { cwd: ROOT, stdio: "inherit", ...opts });
+}
+
+function hasCli(name) {
+  try {
+    execSync(`command -v ${name}`, { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ensureCli(name, hint) {
+  if (!hasCli(name)) fail(`Falta el CLI "${name}". Instálalo: ${hint}`);
+}
+
+// Derive the Supabase project ref from the project URL.
+// https://abcdefghijkl.supabase.co  ->  abcdefghijkl
+function deriveRef(url) {
+  const m = /^https:\/\/([a-z0-9]+)\.supabase\./i.exec(url || "");
+  return m ? m[1] : null;
+}
+
+// ── Supabase Management API (optional automation — needs SUPABASE_ACCESS_TOKEN) ─
+const mgmtToken = () => process.env.SUPABASE_ACCESS_TOKEN || "";
+
+async function mgmtCall(method, path, body) {
+  const res = await fetch(`${SUPABASE_API}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${mgmtToken()}`,
+      "Content-Type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  return { status: res.status, ok: res.ok, data };
+}
+
+const remoteSql = (ref, query) =>
+  mgmtCall("POST", `/v1/projects/${ref}/database/query`, { query });
+
+// Shared cron inputs: prod URL + CRON_SECRET, validated (fails if not ready).
+function cronInputs() {
+  const env = readEnvFile(ENV_PATH);
+  const appUrl = (env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
+  const secret = env.CRON_SECRET;
+  if (isPlaceholder(appUrl) || /localhost/.test(appUrl)) {
+    fail("NEXT_PUBLIC_APP_URL no es una URL de prod. Corre set-app-url <url> después del deploy.");
+  }
+  if (isPlaceholder(secret)) fail("CRON_SECRET no generado. Corre 'env' primero.");
+  return { env, appUrl, secret };
+}
+
+function fillCronSql(appUrl, secret) {
+  if (!existsSync(CRON_TPL)) fail(`No encuentro la plantilla ${CRON_TPL}`);
+  return readFileSync(CRON_TPL, "utf8")
+    .replaceAll("__APP_URL__", appUrl)
+    .replaceAll("__CRON_SECRET__", secret);
+}
+
+// ── commands ────────────────────────────────────────────────────────────────
+function cmdEnv() {
+  const current = readEnvFile(existsSync(ENV_PATH) ? ENV_PATH : EXAMPLE_PATH);
+  const final = {};
+
+  // Generated secrets: keep if already real, generate only when placeholder.
+  let generatedCount = 0;
+  for (const [k, gen] of Object.entries(GENERATED)) {
+    if (isPlaceholder(current[k])) {
+      final[k] = gen();
+      generatedCount++;
+    } else {
+      final[k] = current[k];
+    }
+  }
+  // Encryption key version default.
+  final.ENCRYPTION_KEY_VERSION = isPlaceholder(current.ENCRYPTION_KEY_VERSION)
+    ? "v1"
+    : current.ENCRYPTION_KEY_VERSION;
+
+  // Pasted keys: take them from the environment when provided & non-placeholder.
+  for (const k of PASTED) {
+    const v = process.env[k];
+    if (v && !isPlaceholder(v)) final[k] = v;
+  }
+
+  rewriteEnv(final);
+  ok(`.env.local escrito. ${generatedCount} secret(s) generado(s) este run.`);
+
+  // Report what is still missing so the agent knows what to ask next.
+  const after = readEnvFile(ENV_PATH);
+  const pending = PASTED.filter((k) => isPlaceholder(after[k]));
+  if (pending.length) {
+    warn(`Faltan estas keys por pegar: ${pending.join(", ")}`);
+  } else {
+    ok("Todas las keys requeridas están presentes.");
+  }
+  log("➡️  NEXT_PUBLIC_APP_URL se setea después del deploy con: set-app-url <url>");
+}
+
+// Migrations that only existed on the retired provider/kapso branch. Their
+// content lives on main as 20260927000000/1 (idempotent), so an install coming
+// from that branch just needs them marked as reverted in its history — or
+// `supabase db push` refuses ("Remote migration versions not found").
+// Marking a version that was never applied is a no-op, so this always runs:
+// no parsing of the CLI's table output.
+const RETIRED_KAPSO_BRANCH_MIGRATIONS = ["20260731000000", "20260731000001"];
+
+// Versions from the community PR stack (#8, #9, #11, #12 and #14, on
+// provider/kapso) that main does not have. main re-lands what it adopts under new versions, so an
+// install that ran those PR branches needs these marked as reverted too, or
+// `db push` refuses. This only fixes the history: whatever those versions
+// created stays in the database.
+const RETIRED_PR_STACK_MIGRATIONS = [
+  "20260811000000", // #9 message_errors
+  "20260823000000", // #8 reserve_llm_turn (on main: 20260928000000)
+  "20260824000000", // #8 security definer grants
+  "20260824000001", // #8 sum_daily_llm_tokens (on main: 20260928000001)
+  "20260824000002", // #8 check_outbound_24h_window grant
+  "20260824000003", // #9 upsert_batch_and_link_message
+  "20260824000004",
+  "20260824000005",
+  "20260824000006",
+  "20260824000007",
+  "20260825000000", // #9 reconciled orphan batches
+  "20260902000000", // #9 claim_next_batch stale retries
+  "20260906000000", // #9 contacts HL unique index
+  "20260906000001", // #9 invoker RPC grants
+  "20260830000000", // #11 n8n_tools (on main: 20260930000001)
+  "20260830000001", // #11 retire custom_webhook (on main: 20260930000007)
+  "20260906000002", // #14 cancel/reschedule seed (on main: 20260930000000)
+  "20260907000000", // #12 handoff_human seed (on main: 20260930000002)
+];
+
+function repairRetiredMigrations() {
+  log("Historial de migraciones: marco como revertidas las de la antigua rama provider/kapso y las de los PRs de la comunidad que main no tiene (no-op si nunca se aplicaron).");
+  run(
+    `supabase migration repair --status reverted ${[
+      ...RETIRED_KAPSO_BRANCH_MIGRATIONS,
+      ...RETIRED_PR_STACK_MIGRATIONS,
+    ].join(" ")}`,
+  );
+}
+
+function cmdDbPush(args) {
+  ensureCli("supabase", "https://supabase.com/docs/guides/cli");
+  const env = readEnvFile(ENV_PATH);
+  const ref = args[0] || deriveRef(env.NEXT_PUBLIC_SUPABASE_URL);
+  if (!ref) {
+    fail("No pude derivar el project-ref desde NEXT_PUBLIC_SUPABASE_URL. Pásalo: db-push <ref>");
+  }
+  log(`Linking Supabase project: ${ref}`);
+  log("(Si pide la DB password y corres esto sin interacción, exporta SUPABASE_DB_PASSWORD primero.)");
+  run(`supabase link --project-ref ${ref}`);
+  repairRetiredMigrations();
+  run("supabase db push");
+  ok("Migraciones aplicadas (incluye pg_cron + pg_net).");
+  log("➡️  Después del deploy: set-app-url <url> y luego cron-sql para agendar el buffer-flush.");
+}
+
+function cmdSetAppUrl(args) {
+  let url = args[0];
+  if (!url) fail("Uso: set-app-url https://tu-app.vercel.app");
+  url = url.replace(/\/+$/, ""); // strip trailing slash
+  if (!/^https:\/\//.test(url)) fail("La URL debe empezar con https://");
+  rewriteEnv({ NEXT_PUBLIC_APP_URL: url });
+  ok(`NEXT_PUBLIC_APP_URL = ${url}`);
+  log("➡️  Acuérdate de setear esta misma URL en Vercel (vercel-env) y en Supabase → Auth → Site URL.");
+}
+
+function cmdCronSql() {
+  const { appUrl, secret } = cronInputs();
+  const filled = fillCronSql(appUrl, secret);
+  writeFileSync(CRON_FILLED, filled);
+  ok(`SQL del cron generado: ${CRON_FILLED}`);
+  log("➡️  Pega el siguiente SQL en Supabase → SQL Editor → Run:\n");
+  log(filled);
+}
+
+async function cmdCronApply() {
+  const { env, appUrl, secret } = cronInputs();
+  const ref = deriveRef(env.NEXT_PUBLIC_SUPABASE_URL);
+  if (!ref) fail("No pude derivar el project-ref de NEXT_PUBLIC_SUPABASE_URL.");
+  if (!mgmtToken()) {
+    warn("Sin SUPABASE_ACCESS_TOKEN — usa el camino manual:");
+    log("   node scripts/setup.mjs cron-sql   (y pega el SQL en el SQL Editor)");
+    return;
+  }
+  const r1 = await remoteSql(ref, fillCronSql(appUrl, secret));
+  if (!r1.ok) fail(`No pude agendar el cron ${r1.status}: ${JSON.stringify(r1.data)}`);
+  const r2 = await remoteSql(
+    ref,
+    "select jobname, schedule, active from cron.job where jobname = 'buffer-flush';",
+  );
+  ok("Cron buffer-flush agendado vía Management API.");
+  log(`Verificación: ${JSON.stringify(r2.data)}`);
+}
+
+async function cmdSiteUrl() {
+  const env = readEnvFile(ENV_PATH);
+  const appUrl = (env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
+  if (isPlaceholder(appUrl) || /localhost/.test(appUrl)) {
+    fail("NEXT_PUBLIC_APP_URL no es prod. Corre set-app-url <url> primero.");
+  }
+  const ref = deriveRef(env.NEXT_PUBLIC_SUPABASE_URL);
+  if (!ref) fail("No pude derivar el project-ref de NEXT_PUBLIC_SUPABASE_URL.");
+  if (!mgmtToken()) {
+    warn("Sin SUPABASE_ACCESS_TOKEN — hazlo manual en Supabase → Authentication:");
+    log(`   URL Configuration → Site URL     = ${appUrl}`);
+    log(`   URL Configuration → Redirect URL = ${appUrl}/**`);
+    log(`   Sign In / Providers → desactiva "Allow new users to sign up"`);
+    return;
+  }
+  // disable_signup: the app's /signup is invite-only, but Supabase Auth's own
+  // /auth/v1/signup accepts the public anon key. Users are created through the
+  // Admin API (seed-admin, agency panel, team invites), which keeps working.
+  const res = await mgmtCall("PATCH", `/v1/projects/${ref}/config/auth`, {
+    site_url: appUrl,
+    uri_allow_list: `${appUrl}/**`,
+    disable_signup: true,
+  });
+  if (!res.ok) fail(`Management API (config/auth) falló ${res.status}: ${JSON.stringify(res.data)}`);
+  ok(`Site URL = ${appUrl} · Redirect = ${appUrl}/** · registro público cerrado (vía Management API)`);
+}
+
+// Is Supabase Auth's own /auth/v1/signup closed? Public endpoint, no token.
+async function signupIsClosed(env) {
+  const url = (env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
+  const anon = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  if (!url || isPlaceholder(anon)) return null;
+  try {
+    const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: anon } });
+    if (!res.ok) return null;
+    const settings = await res.json();
+    return settings?.disable_signup === true;
+  } catch {
+    return null;
+  }
+}
+
+// Closes public signup ONLY — unlike site-url it leaves Site URL and Redirect
+// URLs alone, so it is safe on an install that customized them. Exits non-zero
+// unless it could confirm signup is closed.
+async function cmdCloseSignup() {
+  const env = readEnvFile(ENV_PATH);
+  let patched = false;
+  if (mgmtToken()) {
+    const ref = deriveRef(env.NEXT_PUBLIC_SUPABASE_URL);
+    if (!ref) fail("No pude derivar el project-ref de NEXT_PUBLIC_SUPABASE_URL.");
+    const res = await mgmtCall("PATCH", `/v1/projects/${ref}/config/auth`, {
+      disable_signup: true,
+    });
+    if (!res.ok) fail(`Management API (config/auth) falló ${res.status}: ${JSON.stringify(res.data)}`);
+    patched = true;
+  } else {
+    warn('Sin SUPABASE_ACCESS_TOKEN — hazlo manual: Supabase → Authentication → Sign In / Providers → desactiva "Allow new users to sign up" → Save.');
+  }
+
+  // Auth may take a few seconds to pick up the new config after the PATCH.
+  let closed = await signupIsClosed(env);
+  for (let i = 0; patched && closed === false && i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    closed = await signupIsClosed(env);
+  }
+
+  if (closed === true) {
+    ok("Registro público de Supabase Auth: cerrado.");
+  } else if (closed === false) {
+    fail(
+      patched
+        ? "El registro público de Supabase Auth sigue ABIERTO tras el cambio; revisa el toggle a mano."
+        : "El registro público de Supabase Auth sigue ABIERTO. Desactívalo y vuelve a correr close-signup.",
+    );
+  } else {
+    fail(
+      "No pude verificar /auth/v1/settings (¿faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local?). Revisa el toggle a mano.",
+    );
+  }
+}
+
+function cmdVercelEnv() {
+  ensureCli("vercel", "npm i -g vercel");
+  const env = readEnvFile(ENV_PATH);
+  const skip = new Set(["NODE_ENV"]);
+  const pushed = [];
+  const failed = [];
+  for (const [k, v] of Object.entries(env)) {
+    if (skip.has(k) || isPlaceholder(v)) continue;
+    // Don't push a localhost APP_URL to prod — set-app-url runs after deploy.
+    if (k === "NEXT_PUBLIC_APP_URL" && /localhost/.test(v)) continue;
+    try {
+      execSync(`vercel env add ${k} production`, {
+        cwd: ROOT,
+        input: `${v}\n`,
+        stdio: ["pipe", "ignore", "ignore"],
+      });
+      pushed.push(k);
+    } catch {
+      failed.push(k); // most commonly: the var already exists in Vercel
+    }
+  }
+  ok(`Vars enviadas a Vercel production: ${pushed.join(", ") || "(ninguna)"}`);
+  if (failed.length) {
+    warn(`No se pudieron agregar (probablemente ya existen): ${failed.join(", ")}`);
+    log("   Revísalas/actualízalas en el dashboard de Vercel → Settings → Environment Variables.");
+  }
+  log("➡️  Tras esto, redeploy con: vercel --prod");
+}
+
+function cmdDoctor() {
+  log("── Prerequisitos ──");
+  for (const [cli, hint] of [
+    ["node", "https://nodejs.org"],
+    ["supabase", "https://supabase.com/docs/guides/cli"],
+    ["vercel", "npm i -g vercel"],
+  ]) {
+    log(`${hasCli(cli) ? "✅" : "❌"} ${cli}${hasCli(cli) ? "" : `  (instala: ${hint})`}`);
+  }
+  log("\n── .env.local ──");
+  if (!existsSync(ENV_PATH)) {
+    warn("No existe todavía. Corre: node scripts/setup.mjs env");
+    return;
+  }
+  const env = readEnvFile(ENV_PATH);
+  const required = [...Object.keys(GENERATED), ...PASTED];
+  for (const k of required) {
+    log(`${isPlaceholder(env[k]) ? "❌" : "✅"} ${k}`);
+  }
+  const appReady = !isPlaceholder(env.NEXT_PUBLIC_APP_URL) && !/localhost/.test(env.NEXT_PUBLIC_APP_URL || "");
+  log(`${appReady ? "✅" : "⏳"} NEXT_PUBLIC_APP_URL${appReady ? "" : "  (se setea post-deploy)"}`);
+}
+
+function usage() {
+  log(`setup.mjs — orquestador de instalación (Node puro, sin deps)
+
+Uso: node scripts/setup.mjs <comando>
+
+  env            Genera secrets + escribe .env.local desde las keys pegadas
+  db-push [ref]  supabase link (ref derivado de la URL) + db push
+  set-app-url U  Setea NEXT_PUBLIC_APP_URL a la URL de prod (post-deploy)
+  cron-sql       Imprime el SQL del cron para pegar en el SQL Editor (manual)
+  cron-apply     Agenda el cron vía Management API (necesita SUPABASE_ACCESS_TOKEN)
+  site-url       Setea Site URL + Redirect y cierra el registro público (idem)
+  close-signup   Solo cierra el registro público de Supabase Auth y lo verifica
+  vercel-env     Empuja las vars de .env.local a Vercel production
+  doctor         Revisa prerequisitos y qué keys faltan
+  help           Muestra esta ayuda
+
+Las keys pegadas se pasan como variables de entorno, p.ej.:
+  NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/setup.mjs env
+
+site-url / cron-apply usan un token de Management API (NO se guarda en .env.local):
+  SUPABASE_ACCESS_TOKEN=sbp_... node scripts/setup.mjs site-url`);
+}
+
+// ── dispatch ────────────────────────────────────────────────────────────────
+const [cmd, ...args] = process.argv.slice(2);
+switch (cmd) {
+  case "env":
+    cmdEnv();
+    break;
+  case "db-push":
+    cmdDbPush(args);
+    break;
+  case "set-app-url":
+    cmdSetAppUrl(args);
+    break;
+  case "cron-sql":
+    cmdCronSql();
+    break;
+  case "cron-apply":
+    await cmdCronApply();
+    break;
+  case "site-url":
+    await cmdSiteUrl();
+    break;
+  case "close-signup":
+    await cmdCloseSignup();
+    break;
+  case "vercel-env":
+    cmdVercelEnv();
+    break;
+  case "doctor":
+    cmdDoctor();
+    break;
+  case "help":
+  case undefined:
+    usage();
+    break;
+  default:
+    fail(`Comando desconocido: ${cmd}\nCorre: node scripts/setup.mjs help`);
+}

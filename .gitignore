@@ -1,0 +1,69 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+*.rsc
+tsconfig.tsbuildinfo
+
+# Production
+/build
+/dist
+
+# Misc
+.DS_Store
+*.pem
+
+# Environment — NEVER commit real secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+# ...but DO ship the template so the installer knows what to ask for
+!.env.local.example
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Vercel
+.vercel
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+
+# OS
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Supabase (local CLI state)
+supabase/.branches
+supabase/.temp
+# Filled cron SQL with the real CRON_SECRET — generated post-deploy, never commit
+supabase/cron/*.filled.sql
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# NOTE: package-lock.json is intentionally NOT ignored.
+# A distribution template must ship its lockfile for reproducible installs.

@@ -1,0 +1,215 @@
+"use server";
+
+import { z } from "zod";
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createSbClient } from "@supabase/supabase-js";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type TriggerType =
+  | "first_message"
+  | "inactivity_24h"
+  | "window_closing"
+  | "handoff_requested"
+  | "lead_qualified"
+  | "keyword_match";
+
+export type ActionType =
+  | "send_template"
+  | "assign_agent"
+  | "add_tag"
+  | "close_conversation"
+  | "handoff_human";
+
+export interface AutomationRule {
+  id: string;
+  workspace_id: string;
+  name: string;
+  enabled: boolean;
+  trigger_type: TriggerType;
+  trigger_config: Record<string, unknown>;
+  action_type: ActionType;
+  action_config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function svc() {
+  return createSbClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
+
+async function assertAdminOrManager(
+  workspaceId: string,
+): Promise<void | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "No autenticado" };
+
+  const { data: member } = await supabase
+    .from("memberships")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!member) return { error: "Sin permisos" };
+  if (!["admin", "manager"].includes(member.role as string)) {
+    return {
+      error: "Solo admins y managers pueden gestionar automatizaciones",
+    };
+  }
+}
+
+// ── Schemas ───────────────────────────────────────────────────────────────────
+
+const TRIGGER_TYPES = [
+  "first_message",
+  "inactivity_24h",
+  "window_closing",
+  "handoff_requested",
+  "lead_qualified",
+  "keyword_match",
+] as const;
+
+const ACTION_TYPES = [
+  "send_template",
+  "assign_agent",
+  "add_tag",
+  "close_conversation",
+  "handoff_human",
+] as const;
+
+const SaveSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1).max(120),
+  enabled: z.boolean().default(true),
+  trigger_type: z.enum(TRIGGER_TYPES),
+  trigger_config: z.record(z.string(), z.unknown()).default({}),
+  action_type: z.enum(ACTION_TYPES),
+  action_config: z.record(z.string(), z.unknown()).default({}),
+});
+
+// ── saveAutomationRule ────────────────────────────────────────────────────────
+
+export async function saveAutomationRule(
+  workspaceId: string,
+  rule: Omit<
+    AutomationRule,
+    "workspace_id" | "created_at" | "updated_at" | "id"
+  > & {
+    id?: string;
+  },
+): Promise<{ data?: AutomationRule; error?: string }> {
+  const authCheck = await assertAdminOrManager(workspaceId);
+  if (authCheck && "error" in authCheck) return authCheck;
+
+  const parsed = SaveSchema.safeParse(rule);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const db = svc();
+  const { id, ...fields } = parsed.data;
+
+  if (id) {
+    // Update
+    const { data, error } = await db
+      .from("automation_rules")
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("workspace_id", workspaceId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[saveAutomationRule update]:", error);
+      return { error: "Error al actualizar la automatización" };
+    }
+
+    revalidatePath("/settings");
+    return { data: data as AutomationRule };
+  }
+
+  // Create
+  const { data, error } = await db
+    .from("automation_rules")
+    .insert({ workspace_id: workspaceId, ...fields })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[saveAutomationRule create]:", error);
+    return { error: "Error al crear la automatización" };
+  }
+
+  revalidatePath("/settings");
+  return { data: data as AutomationRule };
+}
+
+// ── deleteAutomationRule ──────────────────────────────────────────────────────
+
+export async function deleteAutomationRule(
+  workspaceId: string,
+  ruleId: string,
+): Promise<{ success?: boolean; error?: string }> {
+  const authCheck = await assertAdminOrManager(workspaceId);
+  if (authCheck && "error" in authCheck) return authCheck;
+
+  const idParsed = z.string().uuid().safeParse(ruleId);
+  if (!idParsed.success) return { error: "ID de regla inválido" };
+
+  const db = svc();
+  const { error } = await db
+    .from("automation_rules")
+    .delete()
+    .eq("id", ruleId)
+    .eq("workspace_id", workspaceId);
+
+  if (error) {
+    console.error("[deleteAutomationRule]:", error);
+    return { error: "Error al eliminar la automatización" };
+  }
+
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+// ── toggleAutomationRule ──────────────────────────────────────────────────────
+
+export async function toggleAutomationRule(
+  workspaceId: string,
+  ruleId: string,
+  enabled: boolean,
+): Promise<{ data?: AutomationRule; error?: string }> {
+  const authCheck = await assertAdminOrManager(workspaceId);
+  if (authCheck && "error" in authCheck) return authCheck;
+
+  const idParsed = z.string().uuid().safeParse(ruleId);
+  if (!idParsed.success) return { error: "ID de regla inválido" };
+
+  const db = svc();
+  const { data, error } = await db
+    .from("automation_rules")
+    .update({ enabled, updated_at: new Date().toISOString() })
+    .eq("id", ruleId)
+    .eq("workspace_id", workspaceId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[toggleAutomationRule]:", error);
+    return { error: "Error al actualizar la automatización" };
+  }
+
+  revalidatePath("/settings");
+  return { data: data as AutomationRule };
+}

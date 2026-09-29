@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design System — Agente WhatsApp · "Glass + Electric Lime"
+ * Source of truth: /ui (component showcase). Ver COMPONENT_RULES.md.
+ *
+ * Tokens almacenados como triplets OKLch crudos -> Tailwind inyecta alpha vía
+ * oklch(var(--token) / <alpha-value>). Esto habilita modificadores de opacidad
+ * (bg-primary/10) manteniendo color OKLch nativo.
+ *
+ * Glassmorphism (estilo Apple/visionOS): la translucidez se aplica con utilidades
+ * explícitas (.glass) — NO via los tokens semánticos, para que el vidrio "lea"
+ * sobre el glow ambiental del fondo.
+ */
+
+@layer base {
+  :root {
+    /* Light mode (toggle) — blanco frío neutro, NUNCA crema */
+    --background: 0.99 0.002 247;
+    --foreground: 0.2 0.01 264;
+
+    --card: 1 0 0;
+    --card-foreground: 0.2 0.01 264;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.2 0.01 264;
+
+    /* Electric Lime — acento de marca (raro = explota) */
+    --primary: 0.9 0.21 126;
+    --primary-foreground: 0.24 0.05 128;
+
+    --secondary: 0.96 0.003 247;
+    --secondary-foreground: 0.25 0.01 264;
+
+    --muted: 0.96 0.003 247;
+    --muted-foreground: 0.5 0.012 264;
+
+    --accent: 0.95 0.008 247;
+    --accent-foreground: 0.22 0.01 264;
+
+    --destructive: 0.58 0.22 25;
+    --destructive-foreground: 0.99 0 0;
+
+    --success: 0.65 0.17 150;
+    --warning: 0.78 0.16 80;
+    --info: 0.62 0.15 250;
+
+    --border: 0.91 0.004 264;
+    --input: 0.91 0.004 264;
+    --ring: 0.9 0.21 126;
+
+    --chart-1: 0.9 0.21 126;
+    --chart-2: 0.62 0.15 250;
+    --chart-3: 0.78 0.16 80;
+    --chart-4: 0.65 0.17 150;
+    --chart-5: 0.58 0.22 25;
+
+    /* Glassmorphism (light) */
+    --glass-bg: 1 0 0;
+    --glass-bg-alpha: 0.6;
+    --glass-border-alpha: 0.5;
+
+    --radius: 0.875rem;
+  }
+
+  .dark {
+    /* Dark mode (default) — deep cool black para que el glass + lime brillen */
+    --background: 0.17 0.006 264;
+    --foreground: 0.97 0.002 247;
+
+    --card: 0.21 0.006 264;
+    --card-foreground: 0.97 0.002 247;
+
+    --popover: 0.2 0.006 264;
+    --popover-foreground: 0.97 0.002 247;
+
+    --primary: 0.9 0.21 126;
+    --primary-foreground: 0.22 0.05 128;
+
+    --secondary: 0.26 0.006 264;
+    --secondary-foreground: 0.97 0.002 247;
+
+    --muted: 0.26 0.006 264;
+    --muted-foreground: 0.7 0.012 264;
+
+    --accent: 0.27 0.006 264;
+    --accent-foreground: 0.97 0.002 247;
+
+    --destructive: 0.62 0.21 25;
+    --destructive-foreground: 0.98 0 0;
+
+    --success: 0.72 0.17 150;
+    --warning: 0.82 0.16 85;
+    --info: 0.68 0.14 250;
+
+    --border: 0.28 0.006 264;
+    --input: 0.3 0.006 264;
+    --ring: 0.9 0.21 126;
+
+    --chart-1: 0.9 0.21 126;
+    --chart-2: 0.68 0.14 250;
+    --chart-3: 0.82 0.16 85;
+    --chart-4: 0.72 0.17 150;
+    --chart-5: 0.62 0.21 25;
+
+    /* Glassmorphism (dark) */
+    --glass-bg: 1 0 0;
+    --glass-bg-alpha: 0.04;
+    --glass-border-alpha: 0.08;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    /* Glow ambiental lime muy sutil para que el glass "lea" (estilo Apple) */
+    background-image:
+      radial-gradient(
+        60rem 40rem at 15% -10%,
+        oklch(0.9 0.21 126 / 0.06),
+        transparent 60%
+      ),
+      radial-gradient(
+        50rem 40rem at 110% 10%,
+        oklch(0.9 0.21 126 / 0.03),
+        transparent 55%
+      );
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  /*
+   * .glass — superficie translúcida estilo Apple/visionOS.
+   * Usar para cards destacadas, navs sticky, overlays. NO anidar glass dentro de glass.
+   */
+  .glass {
+    background-color: oklch(var(--glass-bg) / var(--glass-bg-alpha));
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid oklch(var(--glass-bg) / var(--glass-border-alpha));
+  }
+
+  .glass-strong {
+    background-color: oklch(
+      var(--glass-bg) / calc(var(--glass-bg-alpha) * 2.2)
+    );
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    backdrop-filter: blur(28px) saturate(150%);
+    border: 1px solid oklch(var(--glass-bg) / var(--glass-border-alpha));
+  }
+}

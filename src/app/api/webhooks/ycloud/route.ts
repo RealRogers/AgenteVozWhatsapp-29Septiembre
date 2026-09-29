@@ -1,0 +1,361 @@
+import { type NextRequest, NextResponse, after } from "next/server";
+import { createClient as createSbClient } from "@supabase/supabase-js";
+import {
+  verifyYCloudSignature,
+  parseInbound,
+} from "@/features/inbox/services/ycloud-webhook-handler";
+import { processInbound } from "@/features/inbox/services/normalizer";
+import { checkRateLimits } from "@/features/inbox/services/cost-tracker";
+import {
+  hasTimeToClaim,
+  upsertBatch,
+  processNextBatch,
+} from "@/features/inbox/services/buffer";
+import {
+  downloadAndStoreMedia,
+  patchMessageMedia,
+} from "@/features/inbox/services/media-handler";
+import {
+  transcribeAudio,
+  describeImage,
+} from "@/features/inbox/services/media-understanding";
+import { decryptCredentials } from "@/shared/lib/integration-secrets";
+import { applyMessageStatus } from "@/features/inbox/services/message-status";
+import { extractWebhookError } from "@/features/inbox/services/whatsapp-errors";
+import {
+  checkDestination,
+  internationalDigits,
+  phoneString,
+  samePhone,
+} from "@/features/inbox/services/phone";
+import { workspaceCountryCode } from "@/features/inbox/services/country-code";
+import { emitEventOncePerDay } from "@/features/inbox/services/daily-events";
+
+// Keep the function alive long enough for the best-effort fast path below
+// (sleep through the buffer window + AI generation). The cron is the fallback.
+//
+// The budget is SHARED: the fast path first sleeps the whole silence window
+// (30 s by default, up to 120 s) and only then runs the agent turn, and it only
+// claims a batch with time left to finish it (hasTimeToClaim). 300 s is the
+// Hobby maximum with Fluid Compute, and stays below claim_next_batch()'s
+// 7-minute stale lease.
+export const maxDuration = 300;
+
+function svc() {
+  return createSbClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const startedAt = Date.now();
+  try {
+    const rawBody = await request.text();
+    const sigHeader = request.headers.get("YCloud-Signature");
+
+    // E3: per-tenant webhook routing via ?wsid query param
+    const wsidParam = request.nextUrl.searchParams.get("wsid");
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    // WH-02: classify the event. Status updates carry NO `to` phone — they can
+    // only be routed via the ?wsid query param. Signature verification MUST
+    // happen before we act on EITHER a status update or an inbound message.
+    const isStatusUpdate =
+      typeof body === "object" &&
+      body !== null &&
+      "type" in body &&
+      (body as { type: string }).type === "whatsapp.message.updated";
+
+    // Extract destination phone to identify the workspace integration (inbound).
+    const toPhone =
+      typeof body === "object" &&
+      body !== null &&
+      "whatsappInboundMessage" in body
+        ? ((body as { whatsappInboundMessage?: { to?: string } })
+            .whatsappInboundMessage?.to ?? null)
+        : null;
+
+    // Events that carry NO actionable data AND cannot identify a workspace
+    // (no wsid, no inbound `to`, not a status update) → harmless early 200.
+    if (!isStatusUpdate && !toPhone && !wsidParam) {
+      return NextResponse.json({ received: true });
+    }
+
+    const supabase = svc();
+
+    type IntegrationRow = {
+      workspace_id: string;
+      credentials: Record<string, unknown>;
+      config: Record<string, unknown>;
+    };
+
+    let ws: IntegrationRow | null = null;
+
+    if (wsidParam) {
+      // E3: direct lookup by workspace_id — faster, no phone scan needed.
+      // Status updates always take this path (they have no inbound `to`).
+      const { data } = await supabase
+        .from("integrations")
+        .select("workspace_id, credentials, config")
+        .eq("workspace_id", wsidParam)
+        .eq("provider", "ycloud")
+        .eq("enabled", true)
+        .single();
+      ws = data ?? null;
+    } else {
+      // Fallback: phone-based lookup across all enabled integrations (inbound)
+      const { data: integrations } = await supabase
+        .from("integrations")
+        .select("workspace_id, credentials, config")
+        .eq("provider", "ycloud")
+        .eq("enabled", true)
+        .limit(10);
+
+      const destination = phoneString(toPhone);
+      ws =
+        (integrations ?? []).find((i: IntegrationRow) => {
+          const configured = phoneString(i.config?.phone_number);
+          return Boolean(configured && destination && samePhone(configured, destination));
+        }) ?? null;
+    }
+
+    // No resolvable workspace → 401. A status update without a resolvable
+    // (and below, verified) workspace must NEVER fall through to 200.
+    if (!ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // The workspace was resolved via config.phone_number / wsid — both
+    // plaintext — so decryption happens only after we know which row we need.
+    const creds = (await decryptCredentials(
+      ws.credentials,
+      ws.workspace_id,
+      "ycloud",
+    )) as {
+      ycloud_api_key?: string;
+      webhook_signing_secret?: string;
+    };
+
+    const webhookSecret = creds.webhook_signing_secret;
+    if (!webhookSecret) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // CRITICAL: verify the signature BEFORE acting on ANY event (status or inbound).
+    if (!verifyYCloudSignature(rawBody, sigHeader, webhookSecret)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // WH-02: monotonic status updates — only reached after signature verification.
+    if (isStatusUpdate) {
+      const statusData = (
+        body as {
+          whatsappMessage?: { id?: string; wamid?: string; status?: string };
+        }
+      ).whatsappMessage;
+      // YCloud assigns the wamid after the send, so its own message id is what
+      // our outbound row holds at first (meta.ycloud_id).
+      if (statusData?.status && (statusData.wamid || statusData.id)) {
+        await applyMessageStatus(supabase, ws.workspace_id, {
+          wamid: statusData.wamid ?? null,
+          providerMessageId: statusData.id ?? null,
+          status: statusData.status,
+          error:
+            statusData.status === "failed" ? extractWebhookError(body) : null,
+        });
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    const normalized = parseInbound(body);
+    if (!normalized) {
+      return NextResponse.json({ received: true });
+    }
+
+    // Routed by ?wsid, the signature only proves the event came from YCloud
+    // with this workspace's secret — not that it is for this workspace's
+    // number. A message for another number is ignored and left as an event
+    // for the workspace (once a day), never filed under it. The check needs
+    // the configured number with its country code: a national one is
+    // accepted, with an event saying so. Without a number, it's accepted.
+    if (wsidParam) {
+      const configuredPhone = ws.config?.phone_number;
+      const workspaceId = ws.workspace_id;
+      // Bare digits are read with the workspace's country code (only then).
+      const configuredText = phoneString(configuredPhone);
+      const countryCode =
+        configuredText && !internationalDigits(configuredText)
+          ? await workspaceCountryCode(supabase, workspaceId)
+          : undefined;
+      const destination = checkDestination(
+        configuredPhone,
+        normalized.workspacePhone,
+        countryCode,
+      );
+      if (destination === "mismatch") {
+        console.warn(
+          "[webhook] inbound for another number on this workspace's webhook URL — ignored",
+        );
+        after(() =>
+          emitEventOncePerDay(supabase, workspaceId, "inbound_destination_mismatch", "warn", {
+            configured_phone: phoneString(configuredPhone),
+            destination_phone: phoneString(normalized.workspacePhone),
+          }),
+        );
+        return NextResponse.json({ received: true, ignored: "destination_mismatch" });
+      }
+      if (destination === "unenforced") {
+        after(() =>
+          emitEventOncePerDay(supabase, workspaceId, "inbound_destination_unchecked", "warn", {
+            reason: "phone_number_without_country_code",
+            configured_phone: phoneString(configuredPhone),
+          }),
+        );
+      }
+    }
+
+    const workspaceId = ws.workspace_id as string;
+    const { contact, conversation, message } = await processInbound(
+      workspaceId,
+      normalized,
+    );
+
+    // Duplicate wamid — already processed
+    if (!message) {
+      return NextResponse.json({ received: true, dedup: true });
+    }
+
+    // Media handling (download + AI understanding) runs AFTER the response so
+    // the webhook stays fast. transcript/description land in meta before the
+    // batch is processed, so the agent reads voice notes/images as text.
+    const mediaLink = normalized.type !== "text" ? normalized.mediaLink : null;
+    const messageId = message.id;
+    const conversationId = conversation.id;
+    const mediaJob = mediaLink
+      ? async () => {
+          try {
+            const mediaMeta = await downloadAndStoreMedia({
+              provider: "ycloud",
+              link: mediaLink,
+              apiKey: creds.ycloud_api_key ?? "",
+              workspaceId,
+              conversationId,
+              mimeType: normalized.mediaMime ?? undefined,
+              filename: normalized.mediaFilename ?? undefined,
+              caption:
+                normalized.text && normalized.text !== "[Multimedia]"
+                  ? normalized.text
+                  : undefined,
+              mediaId: normalized.mediaId ?? undefined,
+            });
+            if (!mediaMeta) return;
+
+            // Translate voice/image to text so the agent understands them.
+            if (normalized.type === "audio" || normalized.type === "voice") {
+              const transcript = await transcribeAudio({
+                storagePath: mediaMeta.storage_path,
+                mimeType: mediaMeta.mime_type,
+                workspaceId,
+              });
+              if (transcript) mediaMeta.transcript = transcript;
+            } else if (normalized.type === "image") {
+              const description = await describeImage({
+                storagePath: mediaMeta.storage_path,
+                mimeType: mediaMeta.mime_type,
+                caption: mediaMeta.caption,
+                workspaceId,
+              });
+              if (description) mediaMeta.description = description;
+            }
+
+            await patchMessageMedia(workspaceId, messageId, mediaMeta);
+          } catch (mediaErr) {
+            console.error(
+              "[webhook] media handling failed:",
+              mediaErr instanceof Error ? mediaErr.message : "unknown",
+            );
+          }
+        }
+      : null;
+
+    // A reaction is recorded in the thread, but it isn't something to answer:
+    // it must not start a paid agent turn.
+    if (normalized.rawType === "reaction") {
+      return NextResponse.json({ received: true, reaction: true });
+    }
+
+    // AI is toggled off — still fetch the media so the human agent sees it.
+    if (!conversation.ai_enabled) {
+      if (mediaJob) after(mediaJob);
+      return NextResponse.json({ received: true, ai: false });
+    }
+
+    // Rate-limit check — still runs here to avoid buffering rate-limited contacts
+    const { allowed, reason } = await checkRateLimits(workspaceId, contact.id);
+    if (!allowed) {
+      // SEC-09: log only non-sensitive fields (no credentials or contact PII)
+      console.warn("[webhook] rate limited:", reason ?? "unknown reason");
+      if (mediaJob) after(mediaJob);
+      return NextResponse.json({ received: true, rateLimited: true });
+    }
+
+    // Buffer the message — AI reply is deferred to the cron job.
+    // The silence window is configurable per workspace (YCloud settings).
+    const bufferSeconds = Number(
+      (ws.config as { buffer_silence_seconds?: number }).buffer_silence_seconds,
+    );
+    const silenceMs =
+      Number.isFinite(bufferSeconds) && bufferSeconds >= 3
+        ? Math.min(bufferSeconds, 120) * 1000
+        : undefined;
+
+    await upsertBatch({
+      workspaceId,
+      conversationId: conversation.id,
+      messageId: message.id,
+      silenceMs,
+    });
+
+    // Best-effort fast path: process the batch the moment its buffer window
+    // closes, instead of waiting up to ~60s for the next cron tick. Runs after
+    // the response is sent. If the function is recycled before it fires, the
+    // every-minute cron still picks the batch up — so this only ever speeds
+    // things up, never breaks them. A later message extends flush_at, so an
+    // early fire simply claims nothing and the latest fire does the work.
+    const effectiveSilenceMs = silenceMs ?? 30_000;
+    after(async () => {
+      // Download + understand media first so the transcript/description is in
+      // meta before the batch is consolidated for the agent.
+      if (mediaJob) await mediaJob();
+      await new Promise((resolve) =>
+        setTimeout(resolve, effectiveSilenceMs + 500),
+      );
+      // Without time to finish a turn, leave the batch to the cron.
+      if (!hasTimeToClaim(startedAt, maxDuration)) return;
+      try {
+        await processNextBatch();
+      } catch (e) {
+        console.error(
+          "[webhook] fast-path process error:",
+          e instanceof Error ? e.message : "unknown",
+        );
+      }
+    });
+
+    return NextResponse.json({ received: true, buffered: true });
+  } catch (err) {
+    // SEC-09: never log full error objects — they may contain credentials or raw payloads
+    console.error(
+      "[webhook] unhandled error:",
+      err instanceof Error ? err.message : "unknown error",
+    );
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}

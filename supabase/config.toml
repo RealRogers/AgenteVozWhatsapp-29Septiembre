@@ -1,0 +1,6 @@
+# Supabase CLI project config.
+# Only needed so `supabase link` / `supabase db push` can find the project root.
+# The REMOTE project is linked at install time with:
+#   supabase link --project-ref <your-ref>
+# (scripts/setup.mjs db-push derives <your-ref> from NEXT_PUBLIC_SUPABASE_URL.)
+project_id = "whatsapp-saas"
