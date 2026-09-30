@@ -1,8 +1,8 @@
 # Estructura del proyecto — Agente WhatsApp
 
-> Documento generado el 2026-09-29. Describe la estructura del codebase tal
-> como existe en esa fecha; si el proyecto cambia, este archivo puede quedar
-> desactualizado.
+> Documento generado el 2026-09-29 y verificado/actualizado el mismo día.
+> Describe la estructura del codebase tal como existe en esa fecha; si el
+> proyecto cambia, este archivo puede quedar desactualizado.
 
 Plataforma **multi-tenant** de inbox de WhatsApp con agente de IA operable por
 humano: inbox tipo WhatsApp Web, CRM, motor de agente con handoff, agendamiento
@@ -44,11 +44,19 @@ Reglas de dependencia observadas:
 ```
 ├── .claude/
 │   └── settings.json            # Permisos pre-aprobados para el instalador (Claude Code)
+├── .devin/
+│   ├── mcp_config.json          # Config MCP para Devin (context7)
+│   └── skills/context7-mcp/SKILL.md   # Skill: fetch de docs de librerías vía Context7
 ├── .env.local.example           # Template de variables de entorno (se commitea a propósito)
 ├── .gitignore
-├── .mcp.json                    # Plantillas de servidores MCP (supabase, github, stripe,
-│                                #   playwright, n8n, …) — placeholders, sin secrets
+├── .mcp.json                    # Servidores MCP (16): supabase, playwright, next-devtools,
+│                                #   shadcn, chrome-devtools, github, stripe, sentry, resend,
+│                                #   perplexity, brave-search, firecrawl, n8n, insforge
+│                                #   (deshabilitado), sequential-thinking, svgmaker
+├── AGENTS.md                    # Regla always-on: usar Context7 MCP para docs de librerías
 ├── COMPONENT_RULES.md           # Design system: Glass + Electric Lime, tokens, motion, 4 estados
+├── Documentos-Planeacion/       # Documentos de planeación del producto
+│   └── documentos-planeacion/   #   BLUEPRINT, SECURITY-AUDIT, USER-STORIES (agente-whatsapp)
 ├── Estructura.md                # Este documento — mapa anotado del codebase
 ├── INSTALAR.md                  # Guía de instalación one-click para agentes (~700 líneas)
 ├── LICENSE                      # MIT

@@ -65,5 +65,16 @@ supabase/cron/*.filled.sql
 /blob-report/
 /playwright/.cache/
 
+# Claude Code — settings.json va al repo (permisos del instalador);
+# settings.local.json es por-usuario y puede traer overrides locales
+.claude/settings.local.json
+
+# Lint / misc local
+.eslintcache
+*.log
+
 # NOTE: package-lock.json is intentionally NOT ignored.
 # A distribution template must ship its lockfile for reproducible installs.
+
+.vercel
+.env*
