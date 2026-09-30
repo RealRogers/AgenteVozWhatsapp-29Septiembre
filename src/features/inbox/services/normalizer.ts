@@ -107,6 +107,9 @@ export async function processInbound(
         last_message_at: new Date().toISOString(),
         window_expires_at: windowExpiresAt,
         unread_count: 1,
+        // Fresh activity brings the thread back to the inbox: archiving means
+        // "out of sight while quiet", not "hide forever".
+        archived: false,
       },
       {
         onConflict: "workspace_id,contact_id,channel",
@@ -123,6 +126,27 @@ export async function processInbound(
   }
 
   const conversation = convData as ConversationRow;
+
+  // A message landing on a closed conversation reopens it to ai_active — the
+  // state a brand-new conversation starts in, so the agent handles it like
+  // any other fresh turn. The transition is best-effort: a committed inbound
+  // message beats a failed reopen.
+  if (conversation.state === "closed") {
+    const { applyTransition } = await import("./decision-engine");
+    try {
+      await applyTransition(conversation.id, "ai_active", {
+        trigger: "inbound_message",
+        workspaceId,
+      });
+      conversation.state = "ai_active";
+      conversation.ai_enabled = true;
+    } catch (err) {
+      console.error(
+        "[normalizer] inbound reopen transition failed:",
+        err instanceof Error ? err.message : "unknown",
+      );
+    }
+  }
 
   // 3. Insert message — deduplicate on wamid
   const { data: msgData, error: msgError } = await supabase

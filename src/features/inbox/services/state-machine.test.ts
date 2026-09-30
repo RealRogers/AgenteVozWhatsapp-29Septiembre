@@ -17,8 +17,14 @@ test("canTransition rejects a transition not listed in the table", () => {
   assert.equal(canTransition("ai_active", "ai_active"), false);
 });
 
-test("canTransition rejects any transition out of the terminal closed state", () => {
-  assert.equal(canTransition("closed", "ai_active"), false);
+test("closed only reopens to human_active or ai_active", () => {
+  assert.equal(canTransition("closed", "human_active"), true);
+  assert.equal(canTransition("closed", "ai_active"), true);
+  // Everything else stays illegal — closed is near-terminal, not a hub.
+  assert.equal(canTransition("closed", "handoff_pending"), false);
+  assert.equal(canTransition("closed", "waiting_reply"), false);
+  assert.equal(canTransition("closed", "paused"), false);
+  assert.equal(canTransition("closed", "closed"), false);
 });
 
 test("transition returns the target state when the transition is valid", () => {
@@ -27,13 +33,13 @@ test("transition returns the target state when the transition is valid", () => {
 
 test("transition throws TransitionError with a descriptive message when invalid", () => {
   try {
-    transition("closed", "ai_active");
+    transition("closed", "waiting_reply");
     assert.fail("expected transition to throw");
   } catch (err) {
     assert.ok(err instanceof TransitionError);
     assert.equal(
       (err as Error).message,
-      "Invalid transition: closed → ai_active",
+      "Invalid transition: closed → waiting_reply",
     );
   }
 });

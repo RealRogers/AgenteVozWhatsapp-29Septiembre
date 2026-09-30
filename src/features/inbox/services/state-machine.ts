@@ -22,7 +22,11 @@ const TRANSITIONS: Record<ConversationState, ConversationState[]> = {
   human_active: ["ai_active", "waiting_reply", "paused", "closed"],
   waiting_reply: ["ai_active", "human_active", "closed"],
   paused: ["ai_active", "human_active", "closed"],
-  closed: [], // terminal
+  // Reopen has two paths: an operator clicking "Reabrir" lands on
+  // human_active with themselves assigned (same semantics as take); an
+  // inbound message on a closed thread reopens to ai_active, the same state
+  // a brand-new conversation starts in.
+  closed: ["human_active", "ai_active"], // terminal
 };
 
 export class TransitionError extends Error {

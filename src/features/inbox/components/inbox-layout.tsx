@@ -14,13 +14,19 @@ import type {
   ConversationState,
 } from "@/features/inbox/types";
 
-type FilterTab = "all" | "ai_active" | "human_active" | "handoff_pending";
+type FilterTab =
+  | "all"
+  | "ai_active"
+  | "human_active"
+  | "handoff_pending"
+  | "archived";
 
 const TABS: { id: FilterTab; label: string }[] = [
   { id: "all", label: "Todos" },
   { id: "ai_active", label: "IA activa" },
   { id: "human_active", label: "Humano" },
   { id: "handoff_pending", label: "Handoff" },
+  { id: "archived", label: "Archivadas" },
 ];
 
 interface InboxLayoutProps {
@@ -50,18 +56,26 @@ export function InboxLayout({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return conversations.filter((c) => {
-      const matchesSearch =
-        q === "" ||
-        (c.contact.name ?? "").toLowerCase().includes(q) ||
-        c.contact.phone.toLowerCase().includes(q);
+    return conversations
+      .filter((c) => {
+        const matchesSearch =
+          q === "" ||
+          (c.contact.name ?? "").toLowerCase().includes(q) ||
+          c.contact.phone.toLowerCase().includes(q);
 
-      const matchesTab =
-        activeTab === "all" ||
-        (c.state as ConversationState) === (activeTab as ConversationState);
+        // Archived threads live only in their own tab; every other tab hides
+        // them so archiving actually declutters the inbox.
+        const matchesTab =
+          activeTab === "archived"
+            ? c.archived
+            : !c.archived &&
+              (activeTab === "all" ||
+                (c.state as ConversationState) ===
+                  (activeTab as ConversationState));
 
-      return matchesSearch && matchesTab;
-    });
+        return matchesSearch && matchesTab;
+      })
+      .sort((a, b) => Number(b.priority === "high") - Number(a.priority === "high"));
   }, [conversations, search, activeTab]);
 
   return (

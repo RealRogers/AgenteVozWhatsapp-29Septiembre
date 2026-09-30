@@ -29,6 +29,7 @@ import {
   canViewObservability,
 } from "@/features/inbox/hooks/use-role";
 import { AiToggleButton } from "./ai-toggle-button";
+import { ConversationActionsMenu } from "./conversation-actions-menu";
 import { ChatMessage } from "./chat-message";
 import { WindowBanner } from "./window-banner";
 import { TemplatePicker } from "./template-picker";
@@ -445,6 +446,13 @@ export function ChatThread({
                 initialEnabled={conversation.ai_enabled}
               />
             )}
+
+            {/* Quick actions: copy phone, flag, assign, close/reopen, archive */}
+            <ConversationActionsMenu
+              conversation={conversation}
+              role={role}
+              currentUserId={currentUserId}
+            />
           </div>
         </header>
 

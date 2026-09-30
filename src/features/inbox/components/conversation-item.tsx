@@ -1,3 +1,4 @@
+import { Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   ConversationWithContact,
@@ -83,6 +84,12 @@ export function ConversationItem({
             {displayName}
           </span>
           <div className="flex items-center gap-1.5 shrink-0">
+            {conversation.priority === "high" && (
+              <Flag
+                className="h-3 w-3 text-destructive fill-destructive"
+                aria-label="Conversación prioritaria"
+              />
+            )}
             <StateBadge state={conversation.state as ConversationState} />
             <span
               className="text-xs text-muted-foreground"

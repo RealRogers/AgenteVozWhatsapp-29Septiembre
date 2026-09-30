@@ -242,8 +242,8 @@ test("without workspaceId the lookup filters by id only (internal callers)", asy
 test("throws TransitionError on an invalid transition", async () => {
   reset([{ data: { state: "closed", workspace_id: "ws_1" }, error: null }]);
   await assert.rejects(
-    () => applyTransition("conv_1", "ai_active"),
-    /Invalid transition: closed → ai_active/,
+    () => applyTransition("conv_1", "waiting_reply"),
+    /Invalid transition: closed → waiting_reply/,
   );
 });
 
