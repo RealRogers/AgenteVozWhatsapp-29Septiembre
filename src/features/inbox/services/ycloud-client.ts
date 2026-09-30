@@ -1,4 +1,5 @@
 import type { MetaTemplateComponent } from "@/features/settings/lib/template-form";
+import type { WhatsAppMediaType } from "./whatsapp-provider";
 import { matchesOwnNumber, normalizePhone, placePhone } from "./phone";
 
 const YCLOUD_BASE_URL = "https://api.ycloud.com/v2";
@@ -61,6 +62,80 @@ export async function sendText(
       to,
       text: { body },
     }),
+  });
+
+  let responseBody: unknown;
+  try {
+    responseBody = await response.json();
+  } catch {
+    responseBody = null;
+  }
+
+  if (!response.ok) {
+    throw new YCloudError(
+      response.status,
+      responseBody,
+      `YCloud API error ${response.status}`,
+    );
+  }
+
+  const data = responseBody as Record<string, unknown>;
+
+  return {
+    id: typeof data.id === "string" ? data.id : "",
+    wamid: typeof data.wamid === "string" ? data.wamid : "",
+    status: typeof data.status === "string" ? data.status : "accepted",
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// sendMedia
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface SendMediaParams {
+  apiKey: string;
+  /** Workspace's own number (E.164) */
+  from: string;
+  to: string;
+  type: WhatsAppMediaType;
+  /** Public URL YCloud fetches the file from (a signed Supabase URL) */
+  link: string;
+  /** image / video / document only — audio rejects it */
+  caption?: string;
+  /** document only — the name shown to the recipient */
+  filename?: string;
+}
+
+export interface SendMediaResult {
+  id: string;
+  wamid: string;
+  status: string;
+}
+
+/**
+ * Sends a media message via the YCloud WhatsApp API.
+ * Body shape: { type, from, to, <type>: { link, caption?, filename? } }.
+ * Throws YCloudError on non-2xx responses.
+ */
+export async function sendMedia(
+  params: SendMediaParams,
+): Promise<SendMediaResult> {
+  const { apiKey, from, to, type, link, caption, filename } = params;
+
+  const media: Record<string, string> = { link };
+  // WhatsApp only accepts caption on image/video/document and filename on
+  // document — sending them on the wrong type is a 400, so gate by kind.
+  if (caption && type !== "audio") media.caption = caption;
+  if (filename && type === "document") media.filename = filename;
+
+  const response = await fetch(YCLOUD_MESSAGES_URL, {
+    method: "POST",
+    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": apiKey,
+    },
+    body: JSON.stringify({ type, from, to, [type]: media }),
   });
 
   let responseBody: unknown;

@@ -9,6 +9,10 @@ import {
   UserCheck,
   BarChart2,
   Bot,
+  Paperclip,
+  X,
+  FileText,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -31,6 +35,8 @@ import { TemplatePicker } from "./template-picker";
 import { CrmPanel } from "./crm-panel";
 import { ObservabilityPanel } from "./observability-panel";
 import { RoleGate } from "./role-gate";
+import { createClient } from "@/lib/supabase/client";
+import type { WhatsAppMediaType } from "@/features/inbox/services/whatsapp-provider";
 import type {
   ConversationWithContact,
   MessageRow,
@@ -41,6 +47,38 @@ interface ChatThreadProps {
   initialMessages: MessageRow[];
   currentUserId: string;
   role?: WorkspaceRole;
+}
+
+// WhatsApp's per-kind caps; documents stop at the bucket's 50MB ceiling.
+const MEDIA_MAX_BYTES: Record<WhatsAppMediaType, number> = {
+  image: 5 * 1024 * 1024,
+  audio: 16 * 1024 * 1024,
+  video: 16 * 1024 * 1024,
+  document: 50 * 1024 * 1024,
+};
+
+const MEDIA_TYPE_LABELS: Record<WhatsAppMediaType, string> = {
+  image: "imagen",
+  audio: "audio",
+  video: "video",
+  document: "documento",
+};
+
+const ATTACH_ACCEPT =
+  "image/jpeg,image/png,audio/*,video/mp4,video/3gpp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv";
+
+function mediaTypeFor(mime: string): WhatsAppMediaType {
+  const m = mime.toLowerCase();
+  if (m.startsWith("image/")) return "image";
+  if (m.startsWith("audio/")) return "audio";
+  if (m.startsWith("video/")) return "video";
+  return "document";
+}
+
+function formatBytes(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 export function ChatThread({
@@ -56,6 +94,8 @@ export function ChatThread({
   const [handoffLoading, setHandoffLoading] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [noteMode, setNoteMode] = useState(false);
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
@@ -77,17 +117,91 @@ export function ChatThread({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async () => {
-    const trimmed = draft.trim();
-    if (!trimmed || sending) return;
+  /** Sends a text message through the single exit point. false on error. */
+  const sendTextMessage = async (body: string): Promise<boolean> => {
+    const res = await fetch(
+      `/api/conversations/${conversation.id}/messages`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      },
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast.error((data as { error?: string }).error ?? "Error al enviar");
+      return false;
+    }
+    return true;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    // Reset so picking the same file twice still fires onChange.
+    e.target.value = "";
+    if (!file) return;
+
+    const type = mediaTypeFor(file.type);
+    // WhatsApp only takes JPG/PNG as images — webp/gif go out as documents.
+    if (
+      type === "image" &&
+      !["image/jpeg", "image/jpg", "image/png"].includes(
+        file.type.toLowerCase(),
+      )
+    ) {
+      toast.error("WhatsApp solo admite imágenes JPG o PNG");
+      return;
+    }
+    const max = MEDIA_MAX_BYTES[type];
+    if (file.size > max) {
+      toast.error(
+        `El ${MEDIA_TYPE_LABELS[type]} supera el límite de ${Math.round(max / (1024 * 1024))} MB`,
+      );
+      return;
+    }
+    setPendingFile(file);
+  };
+
+  /**
+   * Uploads the pending file straight to whatsapp-media (RLS gates it to this
+   * workspace), then asks the API to sign + dispatch it. The typed text is the
+   * caption — except on audio, which WhatsApp captions cannot carry, so it is
+   * sent as its own text message instead of being dropped.
+   */
+  const handleSendMedia = async () => {
+    const file = pendingFile;
+    if (!file || sending) return;
     setSending(true);
     try {
+      const type = mediaTypeFor(file.type);
+      const caption = type !== "audio" ? draft.trim() || undefined : undefined;
+      // Same sanitiser as media-handler — the API re-validates this shape.
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = `${conversation.workspace_id}/${conversation.id}/${Date.now()}-${safeName}`;
+
+      const supabase = createClient();
+      const { error: uploadError } = await supabase.storage
+        .from("whatsapp-media")
+        .upload(storagePath, file, { contentType: file.type });
+      if (uploadError) {
+        console.error("[composer] media upload failed:", uploadError.message);
+        toast.error("No se pudo subir el archivo");
+        return;
+      }
+
       const res = await fetch(
-        `/api/conversations/${conversation.id}/messages`,
+        `/api/conversations/${conversation.id}/media`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body: trimmed }),
+          body: JSON.stringify({
+            storagePath,
+            mediaType: type,
+            mimeType: file.type,
+            caption,
+            filename: type === "document" ? file.name : undefined,
+            sizeBytes: file.size,
+          }),
         },
       );
       if (!res.ok) {
@@ -95,7 +209,29 @@ export function ChatThread({
         toast.error((data as { error?: string }).error ?? "Error al enviar");
         return;
       }
+
+      const trailingText = type === "audio" ? draft.trim() : "";
+      setPendingFile(null);
       setDraft("");
+      if (trailingText) await sendTextMessage(trailingText);
+    } catch {
+      toast.error("Error al enviar");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (sending) return;
+    if (pendingFile) {
+      await handleSendMedia();
+      return;
+    }
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    setSending(true);
+    try {
+      if (await sendTextMessage(trimmed)) setDraft("");
     } catch {
       toast.error("Error al enviar");
     } finally {
@@ -408,45 +544,109 @@ export function ChatThread({
             </div>
           ) : (
             /* ── Normal message composer ──────────────────────── */
-            <div className="flex items-end gap-2">
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() => setNoteMode(true)}
-                aria-label="Agregar nota interna"
-                aria-pressed={noteMode}
-                className="shrink-0 h-10 w-10 text-muted-foreground hover:text-warning hover:bg-warning/10"
-              >
-                <StickyNote className="h-4 w-4" aria-hidden="true" />
-              </Button>
-              <Textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Escribe un mensaje..."
-                className="min-h-[40px] max-h-32 resize-none flex-1 text-sm"
-                rows={2}
-                aria-label="Mensaje"
-                disabled={sending}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleSend();
-                  }
-                }}
+            <div className="space-y-2">
+              {/* Pending attachment chip */}
+              {pendingFile && (
+                <div
+                  className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/40 px-3 py-2"
+                  data-testid="pending-attachment"
+                >
+                  <FileText
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1 truncate text-xs text-foreground">
+                    {pendingFile.name}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {MEDIA_TYPE_LABELS[mediaTypeFor(pendingFile.type)]} ·{" "}
+                    {formatBytes(pendingFile.size)}
+                  </span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setPendingFile(null)}
+                    disabled={sending}
+                    aria-label="Quitar archivo adjunto"
+                    className="h-6 w-6 shrink-0"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ATTACH_ACCEPT}
+                className="hidden"
+                aria-hidden="true"
+                onChange={handleFileChange}
               />
-              <Button
-                type="button"
-                size="icon"
-                variant="default"
-                onClick={() => void handleSend()}
-                disabled={sending || draft.trim().length === 0}
-                aria-label="Enviar mensaje"
-                aria-busy={sending}
-                className="shrink-0 h-10 w-10"
-              >
-                <Send className="h-4 w-4" aria-hidden="true" />
-              </Button>
+
+              <div className="flex items-end gap-2">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setNoteMode(true)}
+                  aria-label="Agregar nota interna"
+                  aria-pressed={noteMode}
+                  className="shrink-0 h-10 w-10 text-muted-foreground hover:text-warning hover:bg-warning/10"
+                >
+                  <StickyNote className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending}
+                  aria-label="Adjuntar archivo"
+                  className="shrink-0 h-10 w-10 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                >
+                  <Paperclip className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={
+                    pendingFile &&
+                    mediaTypeFor(pendingFile.type) !== "audio"
+                      ? "Añade una descripción (opcional)..."
+                      : "Escribe un mensaje..."
+                  }
+                  className="min-h-[40px] max-h-32 resize-none flex-1 text-sm"
+                  rows={2}
+                  aria-label="Mensaje"
+                  disabled={sending}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleSend();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="default"
+                  onClick={() => void handleSend()}
+                  disabled={
+                    sending || (!pendingFile && draft.trim().length === 0)
+                  }
+                  aria-label="Enviar mensaje"
+                  aria-busy={sending}
+                  className="shrink-0 h-10 w-10"
+                >
+                  {sending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </footer>

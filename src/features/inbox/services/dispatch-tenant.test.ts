@@ -156,6 +156,12 @@ mock.module("./ycloud-client.ts", {
       if (ycloudFailure) throw new FakeYCloudError(ycloudFailure.status, ycloudFailure.body);
       return { id: "yc_text", wamid: "wamid_text" };
     },
+    sendMedia: async (p: Record<string, unknown>) => {
+      sends.push({ provider: "ycloud", kind: "media", ...p });
+      sendHook?.();
+      if (ycloudFailure) throw new FakeYCloudError(ycloudFailure.status, ycloudFailure.body);
+      return { id: "yc_media", wamid: "wamid_media" };
+    },
     sendTemplate: async (p: Record<string, unknown>) => {
       sends.push({ provider: "ycloud", kind: "template", ...p });
       return { id: "yc_tpl", wamid: "wamid_tpl" };
@@ -169,6 +175,10 @@ mock.module("./kapso-client.ts", {
       sends.push({ provider: "kapso", kind: "text", ...p });
       return { id: "kp_text", wamid: "wamid_k_text" };
     },
+    sendMedia: async (p: Record<string, unknown>) => {
+      sends.push({ provider: "kapso", kind: "media", ...p });
+      return { id: "kp_media", wamid: "wamid_k_media" };
+    },
     sendTemplate: async (p: Record<string, unknown>) => {
       sends.push({ provider: "kapso", kind: "template", ...p });
       return { id: "kp_tpl", wamid: "wamid_k_tpl" };
@@ -176,7 +186,18 @@ mock.module("./kapso-client.ts", {
   },
 });
 
-const { dispatchText, dispatchTemplate } = await import("./dispatch.ts");
+// The provider fetches the file from a signed Storage URL; the signature is
+// mocked so tests stay offline and can also simulate a signing failure.
+let signedUrl: string | null = "https://signed.example/file";
+mock.module("./media-handler.ts", {
+  exports: {
+    getSignedUrl: async () => signedUrl,
+    downloadAndStoreMedia: async () => null,
+    patchMessageMedia: async () => {},
+  },
+});
+
+const { dispatchText, dispatchTemplate, dispatchMedia } = await import("./dispatch.ts");
 
 function reset() {
   tables.messages = [];
@@ -184,6 +205,7 @@ function reset() {
   upserted = [];
   sends = [];
   ycloudFailure = null;
+  signedUrl = "https://signed.example/file";
   (tables.contacts[0] as Row).opt_in = true;
 }
 
@@ -415,4 +437,96 @@ test("a conversation the send can't find is logged for the workspace", async () 
   await dispatchText({ workspaceId: "ws_a", conversationId: "conv_b", body: "hola", noteWhenBlocked: true });
   assert.equal(msgs().length, 0);
   assert.equal(tables.events[0]?.type, "outbound_not_sent");
+});
+
+// ── dispatchMedia ────────────────────────────────────────────────────────────
+
+const MEDIA = {
+  conversationId: "conv_a",
+  mediaType: "image" as const,
+  storagePath: "ws_a/conv_a/1-photo.jpg",
+  mimeType: "image/jpeg",
+};
+
+test("media goes out through the workspace's provider with its signed link", async () => {
+  reset();
+  const res = await dispatchMedia({ workspaceId: "ws_a", ...MEDIA, caption: "mira" });
+  assert.equal(res.ok, true);
+  assert.equal(sends.length, 1);
+  assert.equal(sends[0].provider, "ycloud");
+  assert.equal(sends[0].kind, "media");
+  assert.equal(sends[0].link, "https://signed.example/file");
+  assert.equal(sends[0].to, "+15550000001");
+  assert.equal(sends[0].caption, "mira");
+});
+
+test("a Kapso workspace sends media through Kapso", async () => {
+  reset();
+  const res = await dispatchMedia({
+    workspaceId: "ws_b",
+    conversationId: "conv_b",
+    mediaType: "document",
+    storagePath: "ws_b/conv_b/2-doc.pdf",
+    mimeType: "application/pdf",
+    filename: "doc.pdf",
+  });
+  assert.equal(res.ok, true);
+  assert.equal(sends[0].provider, "kapso");
+  assert.equal(sends[0].phoneNumberId, "pn_b");
+  assert.equal(sends[0].filename, "doc.pdf");
+});
+
+test("the media row keeps the type and the storage meta the UI reads", async () => {
+  reset();
+  await dispatchMedia({ workspaceId: "ws_a", ...MEDIA, sizeBytes: 1234 });
+  const row = msgs()[0];
+  assert.equal(row.type, "image");
+  assert.equal(row.status, "sent");
+  const meta = row.meta as Row;
+  assert.equal(meta.storage_path, "ws_a/conv_a/1-photo.jpg");
+  assert.equal(meta.mime_type, "image/jpeg");
+  assert.equal(meta.size_bytes, 1234);
+  assert.equal(meta.ycloud_id, "yc_media");
+});
+
+test("media outside the 24h window is refused before upload signing or sending", async () => {
+  reset();
+  (tables.conversations[0] as Row).window_expires_at = "2020-01-01T00:00:00Z";
+  const res = await dispatchMedia({ workspaceId: "ws_a", ...MEDIA });
+  (tables.conversations[0] as Row).window_expires_at = null;
+  assert.equal(res.errorCode, "WINDOW_EXPIRED");
+  assert.equal(sends.length, 0);
+  assert.equal(msgs().length, 0, "no orphaned row");
+});
+
+test("an opt-out contact gets no media either", async () => {
+  reset();
+  (tables.contacts[0] as Row).opt_in = false;
+  const res = await dispatchMedia({ workspaceId: "ws_a", ...MEDIA });
+  assert.equal(res.errorCode, "OPT_OUT");
+  assert.equal(sends.length, 0);
+  assert.equal(msgs().length, 0);
+});
+
+test("a signing failure leaves no queued row", async () => {
+  reset();
+  signedUrl = null;
+  const res = await dispatchMedia({ workspaceId: "ws_a", ...MEDIA });
+  assert.equal(res.ok, false);
+  assert.equal(res.errorCode, "DB_ERROR");
+  assert.equal(res.retryable, true);
+  assert.equal(sends.length, 0);
+  assert.equal(msgs().length, 0);
+});
+
+test("a media row is queued before the provider call, as text is", async () => {
+  reset();
+  let statusAtSend: unknown = null;
+  sendHook = () => {
+    statusAtSend = msgs()[0]?.status;
+  };
+  await dispatchMedia({ workspaceId: "ws_a", ...MEDIA });
+  sendHook = null;
+  assert.equal(statusAtSend, "queued");
+  assert.equal(msgs()[0].status, "sent");
 });

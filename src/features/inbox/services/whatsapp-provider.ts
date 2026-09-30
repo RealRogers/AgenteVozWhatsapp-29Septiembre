@@ -18,6 +18,24 @@ export const WHATSAPP_PROVIDER_LABELS: Record<WhatsAppProvider, string> = {
   kapso: "Kapso",
 };
 
+/**
+ * Media message kinds both providers accept (Meta's four). `sticker` is
+ * intentionally absent — the composer doesn't offer it.
+ */
+export const WHATSAPP_MEDIA_TYPES = [
+  "image",
+  "audio",
+  "video",
+  "document",
+] as const;
+export type WhatsAppMediaType = (typeof WHATSAPP_MEDIA_TYPES)[number];
+
+export function isWhatsAppMediaType(
+  value: unknown,
+): value is WhatsAppMediaType {
+  return (WHATSAPP_MEDIA_TYPES as readonly unknown[]).includes(value);
+}
+
 /** Thrown (inside the message) when a workspace has no active WhatsApp provider. */
 export const WHATSAPP_NOT_CONNECTED = "WhatsApp integration not found";
 

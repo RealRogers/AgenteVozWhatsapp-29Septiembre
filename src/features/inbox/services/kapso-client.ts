@@ -1,4 +1,5 @@
 import type { MetaTemplateComponent } from "@/features/settings/lib/template-form";
+import type { WhatsAppMediaType } from "./whatsapp-provider";
 
 /**
  * Kapso's WhatsApp API mirrors Meta's Graph API, so the sender is identified by
@@ -140,6 +141,65 @@ export async function sendText(
 
   // Kapso reports no id/status of its own. A 2xx means accepted for delivery;
   // the delivered/read webhooks advance it from there.
+  return { id: wamid, wamid, status: "accepted" };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// sendMedia
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface SendMediaParams {
+  apiKey: string;
+  /** Meta phone number ID — NOT the E.164 number */
+  phoneNumberId: string;
+  to: string;
+  type: WhatsAppMediaType;
+  /** Public URL Kapso/Meta fetches the file from (a signed Supabase URL) */
+  link: string;
+  /** image / video / document only — audio rejects it */
+  caption?: string;
+  /** document only — the name shown to the recipient */
+  filename?: string;
+}
+
+export interface SendMediaResult {
+  id: string;
+  wamid: string;
+  status: string;
+}
+
+/**
+ * Sends a media message via the Kapso WhatsApp API (Meta's shape).
+ * Body: { messaging_product, to, type, <type>: { link, caption?, filename? } }.
+ * Throws KapsoError on non-2xx responses.
+ */
+export async function sendMedia(
+  params: SendMediaParams,
+): Promise<SendMediaResult> {
+  const { apiKey, phoneNumberId, to, type, link, caption, filename } = params;
+
+  const media: Record<string, string> = { link };
+  // WhatsApp only accepts caption on image/video/document and filename on
+  // document — sending them on the wrong type is a 400, so gate by kind.
+  if (caption && type !== "audio") media.caption = caption;
+  if (filename && type === "document") media.filename = filename;
+
+  const data = await kapsoFetch(
+    `${KAPSO_WA_BASE}/${encodeURIComponent(phoneNumberId)}/messages`,
+    apiKey,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type,
+        [type]: media,
+      }),
+    },
+    "sendMedia",
+  );
+
+  const wamid = wamidFromSendResponse(data);
   return { id: wamid, wamid, status: "accepted" };
 }
 

@@ -20,7 +20,9 @@ import {
   decryptWhatsAppCredentials,
   loadWhatsAppIntegration,
   WHATSAPP_NOT_CONNECTED,
+  type WhatsAppMediaType,
 } from "./whatsapp-provider";
+import { getSignedUrl } from "./media-handler";
 import {
   whatsappSender,
   WhatsAppConfigError,
@@ -91,6 +93,27 @@ export interface DispatchTemplateParams {
   templateLanguage?: string;
   components?: TemplateComponents;
   senderUserId?: string;
+}
+
+export interface DispatchMediaParams {
+  workspaceId: string;
+  conversationId: string;
+  mediaType: WhatsAppMediaType;
+  /**
+   * Object path in the whatsapp-media bucket, already uploaded by the
+   * operator's browser: {workspaceId}/{conversationId}/{file}.
+   */
+  storagePath: string;
+  mimeType: string;
+  /** image / video / document only — audio takes none. */
+  caption?: string;
+  /** document only — the name WhatsApp shows the contact. */
+  filename?: string;
+  sizeBytes?: number;
+  /** null = AI-generated, set = human agent */
+  senderUserId?: string;
+  /** Admin bypass for expired window — triggers a WINDOW_OVERRIDE DB log */
+  overrideAdmin?: boolean;
 }
 
 export interface DispatchResult {
@@ -623,6 +646,143 @@ export async function dispatchTemplate(
         components,
       }),
     what: "sendTemplate",
+    recordRetryableFailure: true,
+  });
+
+  if (result.ok) await touchConversation(supabase, conversationId);
+  return result;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// dispatchMedia — sends an image / audio / video / document outbound message
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** List-preview text when the media row carries no caption (body column). */
+const MEDIA_LABELS: Record<WhatsAppMediaType, string> = {
+  image: "[Imagen]",
+  audio: "[Audio]",
+  video: "[Video]",
+  document: "[Documento]",
+};
+
+/**
+ * Media is a session message: it follows dispatchText's lifecycle — the same
+ * opt-in block and 24h window guard (a media send outside the window is
+ * refused; templates remain the only outside-window path). The file must
+ * already sit in whatsapp-media; only a short-lived signed link reaches the
+ * provider, which fetches the bytes itself.
+ */
+export async function dispatchMedia(
+  params: DispatchMediaParams,
+): Promise<DispatchResult> {
+  const {
+    workspaceId,
+    conversationId,
+    mediaType,
+    storagePath,
+    mimeType,
+    caption,
+    filename,
+    sizeBytes,
+    senderUserId,
+    overrideAdmin = false,
+  } = params;
+
+  const supabase = svc();
+
+  // 1. Load conversation window + contact phone (scoped to the workspace)
+  const loaded = await loadConversationAndPhone(
+    conversationId,
+    workspaceId,
+    supabase,
+  );
+  if (!loaded) return NOT_FOUND;
+  const { window_expires_at, toPhone } = loaded;
+
+  // SEC-10: Block outbound to opted-out contacts
+  if (!loaded.optIn) return OPT_OUT;
+
+  // 2. App-level 24h window guard (DB trigger is the final enforcer)
+  if (
+    window_expires_at !== null &&
+    new Date() > new Date(window_expires_at) &&
+    !overrideAdmin
+  ) {
+    return WINDOW_EXPIRED;
+  }
+
+  // 3. The provider downloads the file itself, so it needs a public URL:
+  // sign BEFORE queuing — a storage failure must leave no orphan row.
+  const link = await getSignedUrl(storagePath);
+  if (!link) {
+    console.error("[dispatch] could not sign media path:", storagePath);
+    return {
+      ok: false,
+      error: GENERIC_SEND_ERROR,
+      errorCode: "DB_ERROR",
+      retryable: true,
+    };
+  }
+
+  // 4. Resolve the workspace's WhatsApp provider
+  const sender = await loadSender(workspaceId, supabase);
+  const rowMeta: Record<string, unknown> = {
+    storage_path: storagePath,
+    mime_type: mimeType,
+    caption: caption || undefined,
+    filename: filename || undefined,
+    size_bytes: sizeBytes ?? undefined,
+    dev_mode: sender.live ? undefined : true,
+    override_admin: overrideAdmin || undefined,
+  };
+
+  // 5. Queue the row. trg_messages_24h_window fires on this insert — a media
+  // message is not a template, so the same guard applies as for free text.
+  const queued = await insertQueuedRow(supabase, {
+    workspace_id: workspaceId,
+    conversation_id: conversationId,
+    direction: "out",
+    type: mediaType,
+    body: caption || filename || MEDIA_LABELS[mediaType],
+    sender_user_id: senderUserId ?? null,
+    meta: rowMeta,
+  });
+  if ("error" in queued) {
+    console.error("[dispatch] media insert error:", queued.error);
+    if (queued.error.includes("WINDOW_EXPIRED")) {
+      return WINDOW_EXPIRED;
+    }
+    // Nothing was sent: safe to try again.
+    return {
+      ok: false,
+      error: GENERIC_SEND_ERROR,
+      errorCode: "DB_ERROR",
+      retryable: true,
+    };
+  }
+
+  // 6. Dev mode (placeholder key): the queued row is the whole record.
+  if (!sender.live) {
+    await touchConversation(supabase, conversationId);
+    return { ok: true };
+  }
+
+  // 7. Send and record the outcome on the row
+  const result = await sendQueuedRow({
+    supabase,
+    sender,
+    workspaceId,
+    rowId: queued.id,
+    rowMeta,
+    send: () =>
+      sender.sendMedia({
+        to: toPhone,
+        type: mediaType,
+        link,
+        caption,
+        filename,
+      }),
+    what: "sendMedia",
     recordRetryableFailure: true,
   });
 

@@ -8,6 +8,7 @@ import * as kapso from "./kapso-client";
 import {
   WHATSAPP_PROVIDER_LABELS,
   whatsappApiKey,
+  type WhatsAppMediaType,
   type WhatsAppProvider,
 } from "./whatsapp-provider";
 
@@ -21,12 +22,24 @@ export interface SendResult {
   providerMessageId?: string;
 }
 
+export interface SendMediaInput {
+  to: string;
+  type: WhatsAppMediaType;
+  /** Provider-fetched URL — a short-lived signed Storage link. */
+  link: string;
+  /** image / video / document only; ignored on audio. */
+  caption?: string;
+  /** document only; ignored elsewhere. */
+  filename?: string;
+}
+
 export interface WhatsAppSender {
   provider: WhatsAppProvider;
   label: string;
   /** False for a missing/"placeholder" key: dev mode, nothing is sent. */
   live: boolean;
   sendText(to: string, body: string): Promise<SendResult>;
+  sendMedia(params: SendMediaInput): Promise<SendResult>;
   sendTemplate(params: {
     to: string;
     templateName: string;
@@ -86,6 +99,18 @@ export function whatsappSender(
         });
         return { wamid: sent.wamid || undefined };
       },
+      async sendMedia({ to, type, link, caption, filename }) {
+        const sent = await kapso.sendMedia({
+          apiKey,
+          phoneNumberId: phoneNumberId(),
+          to,
+          type,
+          link,
+          caption,
+          filename,
+        });
+        return { wamid: sent.wamid || undefined };
+      },
       async sendTemplate({ to, templateName, language, components }) {
         const sent = await kapso.sendTemplate({
           apiKey,
@@ -108,6 +133,21 @@ export function whatsappSender(
     live,
     async sendText(to, body) {
       const sent = await ycloud.sendText({ apiKey, from: from(), to, body });
+      return {
+        wamid: sent.wamid || undefined,
+        providerMessageId: sent.id || undefined,
+      };
+    },
+    async sendMedia({ to, type, link, caption, filename }) {
+      const sent = await ycloud.sendMedia({
+        apiKey,
+        from: from(),
+        to,
+        type,
+        link,
+        caption,
+        filename,
+      });
       return {
         wamid: sent.wamid || undefined,
         providerMessageId: sent.id || undefined,
