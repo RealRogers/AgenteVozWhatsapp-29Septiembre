@@ -10,7 +10,8 @@ import { isSignupOpen, markAsSuperAdmin } from "./signup-gate";
 // Falls back to the original message when there is no known translation.
 function localizeAuthError(msg: string): string {
   const map: Record<string, string> = {
-    "Invalid login credentials": "Correo o contraseña incorrectos",
+    "Invalid login credentials":
+      "Ese correo o contraseña no coincide. Revisa tus datos o recupera tu acceso.",
     "Email not confirmed": "Email no confirmado",
     "User already registered": "Este correo ya está registrado",
     // /signup only renders while there is no user yet, i.e. on a fresh
@@ -31,17 +32,32 @@ const signupSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 });
 
+export interface LoginState {
+  error?: string;
+  fieldErrors?: { email?: string; password?: string };
+}
+
 export async function login(
-  _prevState: { error: string } | null,
+  _prevState: LoginState | null,
   formData: FormData,
-): Promise<{ error: string }> {
+): Promise<LoginState> {
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
+    const fieldErrors: { email?: string; password?: string } = {};
+    for (const issue of parsed.error.issues) {
+      const field = issue.path[0];
+      if (
+        (field === "email" || field === "password") &&
+        !fieldErrors[field]
+      ) {
+        fieldErrors[field] = issue.message;
+      }
+    }
+    return { fieldErrors };
   }
 
   const supabase = await createClient();
