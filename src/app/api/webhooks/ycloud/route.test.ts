@@ -57,17 +57,17 @@ mock.module("@/features/inbox/services/media-handler.ts", {
 mock.module("@/features/inbox/services/media-understanding.ts", {
   exports: { transcribeAudio: unused, describeImage: unused },
 });
-const events: Array<{ workspaceId: string; type: string; payload: Record<string, unknown> }> = [];
+const events: Array<{ workspaceId: string; type: string; level: string; payload: Record<string, unknown> }> = [];
 mock.module("@/features/inbox/services/daily-events.ts", {
   exports: {
     emitEventOncePerDay: async (
       _db: unknown,
       workspaceId: string,
       type: string,
-      _level: string,
+      level: string,
       payload: Record<string, unknown>,
     ) => {
-      events.push({ workspaceId, type, payload });
+      events.push({ workspaceId, type, level, payload });
     },
   },
 });
@@ -252,4 +252,31 @@ test("bare digits with the workspace's code are enforced; a + number never needs
   await inbound("+15550000000", { type: "reaction", reaction: { emoji: "👍" } });
   assert.deepEqual(countryCodeCalls, [], "no business_info read on the common path");
   await settled();
+});
+
+test("an inbound event missing wamid/from is dropped with a warn event, not silently", async () => {
+  inboundCalls = 0;
+  events.length = 0;
+  const res = await signedPost({
+    type: "whatsapp.inbound_message.received",
+    whatsappInboundMessage: { to: "+15550000000", type: "text", text: { body: "hola" } },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(inboundCalls, 0, "nothing is filed");
+  await settled();
+  assert.equal(events[0]?.type, "inbound_malformed");
+  assert.equal(events[0]?.level, "warn");
+  assert.deepEqual(events[0]?.payload, {
+    has_wamid: false,
+    has_from: false,
+    has_to: true,
+  });
+});
+
+test("a non-inbound event type with wsid is ignored without a warn event", async () => {
+  events.length = 0;
+  const res = await signedPost({ type: "whatsapp.some_other_event", data: {} });
+  assert.equal(res.status, 200);
+  await settled();
+  assert.equal(events.length, 0);
 });

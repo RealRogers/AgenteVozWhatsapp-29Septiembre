@@ -176,6 +176,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const normalized = parseInbound(body);
     if (!normalized) {
+      // An event that claims to be an inbound message but failed parsing
+      // (missing wamid/from/to) is still dropped — just not silently. One
+      // warn event a day so a broken payload shape doesn't go unnoticed.
+      // Other event types reaching this point are ignored, as before.
+      if (
+        (body as { type?: string }).type === "whatsapp.inbound_message.received"
+      ) {
+        const wim = (
+          body as { whatsappInboundMessage?: Record<string, unknown> }
+        ).whatsappInboundMessage;
+        after(() =>
+          emitEventOncePerDay(
+            supabase,
+            ws.workspace_id,
+            "inbound_malformed",
+            "warn",
+            {
+              has_wamid: typeof wim?.wamid === "string" && wim.wamid !== "",
+              has_from: typeof wim?.from === "string" && wim.from !== "",
+              has_to: typeof wim?.to === "string" && wim.to !== "",
+            },
+          ),
+        );
+      }
       return NextResponse.json({ received: true });
     }
 
