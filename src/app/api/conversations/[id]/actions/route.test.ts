@@ -217,7 +217,8 @@ test("an agent cannot assign to someone else; admin can", async () => {
   );
   assert.equal(ok.status, 200);
   assert.equal(actionCalls.length, 1);
-  assert.equal(actionCalls[0] && (actionCalls[0] as unknown[])[2], OTHER);
+  const opts = (actionCalls[0] as unknown[])[2] as Record<string, unknown>;
+  assert.equal(opts.assigneeId, OTHER);
 });
 
 test("a viewer cannot do anything, including self-assign", async () => {
@@ -234,6 +235,24 @@ test("a viewer cannot do anything, including self-assign", async () => {
   );
   assert.equal(res.status, 403);
   assert.equal(actionCalls.length, 0);
+});
+
+test("set_tags passes the tag list through to the service", async () => {
+  reset();
+  const res = await POST(
+    makeReq({ action: "set_tags", tags: ["vip", "pendiente"] }),
+    params,
+  );
+  assert.equal(res.status, 200);
+  const opts = (actionCalls[0] as unknown[])[2] as Record<string, unknown>;
+  assert.deepEqual(opts.tags, ["vip", "pendiente"]);
+});
+
+test("set_tags without a tags array is 422 from the service", async () => {
+  reset();
+  nextError = new ConversationActionError("tags requerido");
+  const res = await POST(makeReq({ action: "set_tags" }), params);
+  assert.equal(res.status, 422);
 });
 
 test("invalid transitions surface as 422 with the message", async () => {

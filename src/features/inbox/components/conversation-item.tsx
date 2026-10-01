@@ -115,9 +115,19 @@ export function ConversationItem({
           )}
         </div>
 
-        <p className="font-mono text-[10px] text-muted-foreground/60">
-          {contact.phone}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="font-mono text-[10px] text-muted-foreground/60">
+            {contact.phone}
+          </p>
+          {(conversation.tags ?? []).slice(0, 3).map((t) => (
+            <span
+              key={t}
+              className="rounded bg-primary/10 text-primary px-1 py-px text-[9px] font-medium truncate max-w-16"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
       </div>
     </button>
   );

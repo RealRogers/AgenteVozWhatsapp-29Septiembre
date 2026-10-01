@@ -30,8 +30,10 @@ const BodySchema = z.object({
     "unflag",
     "assign",
     "unassign",
+    "set_tags",
   ]),
   assigneeId: z.string().uuid().optional(),
+  tags: z.array(z.string().max(40)).max(20).optional(),
 });
 
 export async function POST(
@@ -58,7 +60,7 @@ export async function POST(
       { status: 400 },
     );
   }
-  const { action, assigneeId } = parsed.data;
+  const { action, assigneeId, tags } = parsed.data;
 
   // 2. Load through RLS — a non-member sees nothing (404).
   const { data: conv, error: convError } = await supabase
@@ -107,7 +109,7 @@ export async function POST(
     await applyConversationAction(
       { conversationId, workspaceId, actorId: user.id },
       action,
-      assigneeId,
+      { assigneeId, tags },
     );
 
     return NextResponse.json({ ok: true, action });

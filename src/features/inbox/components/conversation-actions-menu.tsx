@@ -15,6 +15,7 @@ import {
   UserX,
   XCircle,
   Undo2,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConversationTagsDialog } from "./conversation-tags-dialog";
 import type { ConversationWithContact } from "@/features/inbox/types";
 import type { WorkspaceRole } from "@/features/inbox/hooks/use-role";
 
@@ -76,6 +78,7 @@ export function ConversationActionsMenu({
   const [busy, setBusy] = useState<Action | null>(null);
   const [members, setMembers] = useState<TeamMember[] | null>(null);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
 
   const isClosed = conversation.state === "closed";
   const isArchived = conversation.archived;
@@ -161,6 +164,14 @@ export function ConversationActionsMenu({
             <DropdownMenuLabel className="text-[11px] text-muted-foreground">
               Conversación
             </DropdownMenuLabel>
+
+            {/* Tags editor — opens a dialog, not a submenu */}
+            {canOperate && (
+              <DropdownMenuItem onSelect={() => setTagsOpen(true)}>
+                <Tag className="h-4 w-4" aria-hidden="true" />
+                Etiquetas…
+              </DropdownMenuItem>
+            )}
 
             {/* Priority toggle — mirrors the UPDATE policy */}
             {canOperate && (
@@ -279,6 +290,15 @@ export function ConversationActionsMenu({
           </>
         )}
       </DropdownMenuContent>
+      {/* Mounted only while open, so its editor seeds from fresh props. */}
+      {tagsOpen && (
+        <ConversationTagsDialog
+          conversationId={conversation.id}
+          open={tagsOpen}
+          onOpenChange={setTagsOpen}
+          initialTags={conversation.tags ?? []}
+        />
+      )}
     </DropdownMenu>
   );
 }

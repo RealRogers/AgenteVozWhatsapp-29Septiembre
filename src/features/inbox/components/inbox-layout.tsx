@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, Tag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,14 @@ export function InboxLayout({
   const pathname = usePathname();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+
+  // Distinct tags across the loaded conversations — the filter chips.
+  const allTags = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of conversations) for (const t of c.tags ?? []) s.add(t);
+    return [...s].sort();
+  }, [conversations]);
 
   // Contador en el título de la pestaña + notificación nativa cuando una
   // conversación entra a handoff_pending (ver use-handoff-alerts.ts).
@@ -73,10 +81,13 @@ export function InboxLayout({
                 (c.state as ConversationState) ===
                   (activeTab as ConversationState));
 
-        return matchesSearch && matchesTab;
+        const matchesTag =
+          tagFilter === null || (c.tags ?? []).includes(tagFilter);
+
+        return matchesSearch && matchesTab && matchesTag;
       })
       .sort((a, b) => Number(b.priority === "high") - Number(a.priority === "high"));
-  }, [conversations, search, activeTab]);
+  }, [conversations, search, activeTab, tagFilter]);
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
@@ -149,6 +160,37 @@ export function InboxLayout({
               </Button>
             ))}
           </div>
+
+          {/* Tag filter — only appears once any conversation has tags */}
+          {allTags.length > 0 && (
+            <div
+              className="flex gap-1 flex-wrap"
+              aria-label="Filtrar por etiqueta"
+            >
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() =>
+                    setTagFilter((cur) => (cur === tag ? null : tag))
+                  }
+                  aria-pressed={tagFilter === tag}
+                  className={cn(
+                    "inline-flex items-center gap-1 h-6 px-2 text-[11px] rounded-md transition-colors",
+                    tagFilter === tag
+                      ? "bg-primary/15 text-primary font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                  )}
+                >
+                  <Tag className="h-3 w-3" aria-hidden="true" />
+                  {tag}
+                  {tagFilter === tag && (
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">

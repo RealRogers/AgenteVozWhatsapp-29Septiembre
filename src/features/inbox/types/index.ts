@@ -44,6 +44,7 @@ export interface ConversationRow {
   assigned_to: string | null;
   priority: "normal" | "high";
   archived: boolean;
+  tags: string[];
   last_message_at: string | null;
   window_expires_at: string | null;
   unread_count: number;

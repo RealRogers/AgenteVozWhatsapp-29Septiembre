@@ -25,7 +25,8 @@ export type ConversationAction =
   | "flag"
   | "unflag"
   | "assign"
-  | "unassign";
+  | "unassign"
+  | "set_tags";
 
 export class ConversationActionError extends Error {
   constructor(message: string) {
@@ -66,11 +67,23 @@ async function updateField(
   });
 }
 
+/** Normalizes a raw tag list: trimmed, non-empty, deduped, bounded. */
+function normalizeTags(tags: string[]): string[] {
+  return [
+    ...new Set(
+      tags
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0 && t.length <= 40),
+    ),
+  ].slice(0, 20);
+}
+
 export async function applyConversationAction(
   ctx: ActionContext,
   action: ConversationAction,
-  assigneeId?: string,
+  opts: { assigneeId?: string; tags?: string[] } = {},
 ): Promise<void> {
+  const { assigneeId, tags } = opts;
   switch (action) {
     case "close":
       // applyTransition throws TransitionError when already closed.
@@ -137,5 +150,18 @@ export async function applyConversationAction(
     case "unassign":
       await updateField(ctx, action, { assigned_to: null }, {});
       return;
+
+    case "set_tags": {
+      if (!Array.isArray(tags)) {
+        throw new ConversationActionError("tags requerido");
+      }
+      await updateField(
+        ctx,
+        action,
+        { tags: normalizeTags(tags) },
+        { tags: normalizeTags(tags) },
+      );
+      return;
+    }
   }
 }
