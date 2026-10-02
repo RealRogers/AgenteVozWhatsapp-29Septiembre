@@ -121,7 +121,7 @@ test("rejects a password shorter than 8 chars without touching auth", async () =
       confirmPassword: "1234567",
     }),
   );
-  assert.match(res.fieldErrors?.password, /8 caracteres/);
+  assert.match(res.fieldErrors?.password!, /8 caracteres/);
   assert.equal(signUpCalls.length, 0);
 });
 
@@ -166,7 +166,7 @@ test("rejects a password/confirm mismatch without touching auth", async () => {
       confirmPassword: "password-8",
     }),
   );
-  assert.match(res.fieldErrors?.confirmPassword, /no coinciden/);
+  assert.match(res.fieldErrors?.confirmPassword!, /no coinciden/);
   assert.equal(signUpCalls.length, 0);
 });
 
@@ -175,7 +175,7 @@ test("rejects a password/confirm mismatch without touching auth", async () => {
 test("a closed gate returns the invite-only error before calling auth", async () => {
   reset({ gateOpen: false });
   const res = await signup(null, validForm());
-  assert.match(res.error, /registro está cerrado/);
+  assert.match(res.error!, /registro está cerrado/);
   assert.equal(signUpCalls.length, 0);
   assert.equal(claimCalls.length, 0);
 });
@@ -190,14 +190,14 @@ test("surfaces the localized auth error from signUp", async () => {
     },
   });
   const res = await signup(null, validForm());
-  assert.match(res.error, /seed-admin\.mjs/);
+  assert.match(res.error!, /seed-admin\.mjs/);
   assert.equal(claimCalls.length, 0);
 });
 
 test("a signUp result without a user is an error, not a redirect", async () => {
   reset({ signUpResult: { data: { user: null }, error: null } });
   const res = await signup(null, validForm());
-  assert.match(res.error, /No se pudo crear la cuenta/);
+  assert.match(res.error!, /No se pudo crear la cuenta/);
   assert.equal(claimCalls.length, 0);
 });
 
@@ -209,7 +209,7 @@ test("an obfuscated user (empty identities) means the email is taken", async () 
     },
   });
   const res = await signup(null, validForm());
-  assert.match(res.error, /ya está registrado/);
+  assert.match(res.error!, /ya está registrado/);
   assert.equal(claimCalls.length, 0);
 });
 
@@ -218,7 +218,7 @@ test("an obfuscated user (empty identities) means the email is taken", async () 
 test("a lost claim reports closed instead of redirecting", async () => {
   reset({ claimResult: false });
   const res = await signup(null, validForm());
-  assert.match(res.error, /registro está cerrado/);
+  assert.match(res.error!, /registro está cerrado/);
   assert.equal(claimCalls.length, 1);
 });
 

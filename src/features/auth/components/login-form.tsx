@@ -53,7 +53,13 @@ function FieldError({ id, message }: { id: string; message: string }) {
   );
 }
 
-export function LoginForm({ message }: { message?: string }) {
+export function LoginForm({
+  message,
+  signupOpen = false,
+}: {
+  message?: string;
+  signupOpen?: boolean;
+}) {
   const [state, formAction] = useActionState(login, null);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -206,17 +212,24 @@ export function LoginForm({ message }: { message?: string }) {
         </div>
       </form>
 
-      {/* Footer del card */}
+      {/* Footer del card — el link a /signup solo existe mientras el gate
+          bootstrap esté abierto; cerrado, un enlace solo rebotaría aquí */}
       <div className="pt-2 border-t border-border/40 text-center">
-        <p className="text-xs text-muted-foreground font-body">
-          ¿Aún no tienes acceso?{" "}
-          <Link
-            href="/signup"
-            className="text-primary font-medium underline-offset-4 hover:underline transition-colors duration-150"
-          >
-            Solicítalo
-          </Link>
-        </p>
+        {signupOpen ? (
+          <p className="text-xs text-muted-foreground font-body">
+            ¿Primera vez aquí?{" "}
+            <Link
+              href="/signup"
+              className="text-primary font-medium underline-offset-4 hover:underline transition-colors duration-150"
+            >
+              Crea la cuenta de administrador
+            </Link>
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground font-body">
+            Acceso por invitación · pide a tu administrador que te agregue
+          </p>
+        )}
       </div>
     </div>
   );
