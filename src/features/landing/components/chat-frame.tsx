@@ -107,11 +107,23 @@ export function ChatFrame({
   chatRef,
 }: ChatFrameProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const didScrollRef = useRef(false);
 
   // El chat siempre muestra lo último, como el scrollTop del HTML original.
+  // El primer render baja de golpe (abrir conversación); los mensajes que
+  // llegan después bajan con scroll suave. Con reduced-motion el motor
+  // renderiza todo de una vez, así que siempre cae en el caso instantáneo.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const instant =
+      !didScrollRef.current ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: instant ? "instant" : "smooth",
+    });
+    didScrollRef.current = true;
   }, [messages, typing]);
 
   return (
