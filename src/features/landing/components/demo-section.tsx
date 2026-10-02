@@ -9,11 +9,15 @@ import { ChatFrame } from "./chat-frame";
 export function DemoSection() {
   const { play, pause, resume, ...playback } = useChatPlayback(DEMO_START_MINUTES);
   const [selected, setSelected] = useState<number | null>(null);
+  // El autoplay inicial es decorativo (aria-live off); una vez que el
+  // usuario elige un preset, sus mensajes sí se anuncian (polite).
+  const [userDriven, setUserDriven] = useState(false);
   const chatRef = useRef<HTMLDivElement | null>(null);
 
   const runPreset = useCallback(
-    (i: number) => {
+    (i: number, userInitiated = false) => {
       setSelected(i);
+      if (userInitiated) setUserDriven(true);
       play(demoPresets[i].script);
     },
     [play],
@@ -40,7 +44,7 @@ export function DemoSection() {
                 type="button"
                 className="lx-qbtn"
                 aria-pressed={i === selected}
-                onClick={() => runPreset(i)}
+                onClick={() => runPreset(i, true)}
               >
                 {p.question}
               </button>
@@ -55,7 +59,7 @@ export function DemoSection() {
             typing={playback.typing}
             groupAriaLabel="Demo: conversación de WhatsApp con el agente"
             chatClassName="lx-chat-demo"
-            ariaLive="polite"
+            ariaLive={userDriven ? "polite" : "off"}
             chatRef={chatRef}
           />
         </div>
