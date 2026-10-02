@@ -1,11 +1,20 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { MessageSquareText } from "lucide-react";
+import { ArrowLeft, MessageSquareText } from "lucide-react";
 import { AuthChatDemo } from "@/features/auth/components/auth-chat-demo";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center bg-background px-4 py-12 overflow-hidden selection:bg-primary/20 selection:text-primary">
+      {/* Volver a la landing */}
+      <Link
+        href="/"
+        className="absolute left-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:left-6 sm:top-6"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+        Volver al inicio
+      </Link>
+
       {/* Malla de fondo técnica con máscara radial */}
       <div
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,oklch(var(--border)/0.2)_1px,transparent_1px),linear-gradient(to_bottom,oklch(var(--border)/0.2)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-40"
