@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bot, Send } from "lucide-react";
 import { motionClasses } from "@/features/ui-kit/motion";
 import { cn } from "@/lib/utils";
@@ -127,6 +127,10 @@ export function AuthChatDemo() {
   // when animation is allowed it resets to 0 and plays the loop.
   const [step, setStep] = useState(TIMELINE.length);
   const [animated, setAnimated] = useState(false);
+  const [paused, setPaused] = useState(false);
+  // Ms already spent in the current beat — lets hover-pause freeze the
+  // timeline mid-beat and resume with the remaining delay.
+  const spentRef = useRef(0);
 
   // Animate only on lg+ viewports with motion allowed.
   useEffect(() => {
@@ -146,22 +150,31 @@ export function AuthChatDemo() {
   // fade the thread out, then restart from an empty (still transparent)
   // container so the cut never reads as a reset.
   useEffect(() => {
-    if (!animated) return;
+    if (!animated || paused) return;
     const beat = TIMELINE[step];
     const delay =
       step === TIMELINE.length
         ? RESTART_MS
         : step > TIMELINE.length
           ? FADE_MS
-          : beat.kind === "typing"
+          : beat?.kind === "typing"
             ? TYPING_MS
             : REVEAL_MS;
+    const startedAt = Date.now();
+    let fired = false;
     const t = setTimeout(
-      () => setStep((s) => (s > TIMELINE.length ? 0 : s + 1)),
-      delay,
+      () => {
+        fired = true;
+        spentRef.current = 0;
+        setStep((s) => (s > TIMELINE.length ? 0 : s + 1));
+      },
+      Math.max(0, delay - spentRef.current),
     );
-    return () => clearTimeout(t);
-  }, [animated, step]);
+    return () => {
+      if (!fired) spentRef.current += Date.now() - startedAt;
+      clearTimeout(t);
+    };
+  }, [animated, paused, step]);
 
   // Derived from consumed beats — not state, so no cascading renders.
   const shown = TIMELINE.slice(0, step).flatMap((b) =>
@@ -172,7 +185,12 @@ export function AuthChatDemo() {
   const fading = step > TIMELINE.length;
 
   return (
-    <aside className="relative hidden lg:block" aria-hidden="true">
+    <aside
+      className="relative hidden lg:block"
+      aria-hidden="true"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
       {/* Lime halo so the panel reads as glass */}
       <div className="pointer-events-none absolute -inset-10 rounded-full bg-primary/8 blur-[110px]" />
 
