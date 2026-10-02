@@ -77,14 +77,14 @@ test("writes the profile row flagged super admin via an upsert (no signup trigge
   }) as typeof fetch;
   try {
     assert.equal(
-      await claimBootstrapProfile(USER_ID, "dueno@agencia.com"),
+      await claimBootstrapProfile(USER_ID, "dueno@agencia.com", "Dueño Uno"),
       true,
     );
     assert.match(upsertedUrl!, /\/rest\/v1\/users\?on_conflict=id/);
     assert.deepEqual(upsertedBody, {
       id: USER_ID,
       email: "dueno@agencia.com",
-      full_name: "dueno",
+      full_name: "Dueño Uno",
       is_super_admin: true,
     });
   } finally {
@@ -118,7 +118,7 @@ test("loses the claim when a profile landed first — deletes the orphan auth us
     throw new Error(`unexpected fetch call: ${init?.method} ${url}`);
   }) as typeof fetch;
   try {
-    assert.equal(await claimBootstrapProfile(USER_ID, "x@y.com"), false);
+    assert.equal(await claimBootstrapProfile(USER_ID, "x@y.com", "X Y"), false);
     assert.ok(deletedAuthUser, "the just-created auth user must be rolled back");
     assert.ok(!wroteProfile, "no second profile may be written");
   } finally {
@@ -150,7 +150,7 @@ test("a failed profile write rolls back the auth user as well", async () => {
     throw new Error(`unexpected fetch call: ${init?.method} ${url}`);
   }) as typeof fetch;
   try {
-    assert.equal(await claimBootstrapProfile(USER_ID, "x@y.com"), false);
+    assert.equal(await claimBootstrapProfile(USER_ID, "x@y.com", "X Y"), false);
     assert.ok(deletedAuthUser);
   } finally {
     globalThis.fetch = originalFetch;

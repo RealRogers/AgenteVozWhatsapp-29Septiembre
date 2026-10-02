@@ -29,8 +29,12 @@ mock.module("next/headers", {
 // ── fakes ────────────────────────────────────────────────────────────────────
 let gateOpen = true;
 let claimResult = true;
-let claimCalls: { userId: string; email: string }[] = [];
-let signUpCalls: { email: string; password: string }[] = [];
+let claimCalls: { userId: string; email: string; fullName: string }[] = [];
+let signUpCalls: {
+  email: string;
+  password: string;
+  options?: { data?: { full_name?: string } };
+}[] = [];
 let signUpResult: {
   data: { user: { id: string; identities?: { provider: string }[] } | null };
   error: { message: string } | null;
@@ -39,8 +43,12 @@ let signUpResult: {
 mock.module("./signup-gate.ts", {
   exports: {
     isSignupOpen: async () => gateOpen,
-    claimBootstrapProfile: async (userId: string, email: string) => {
-      claimCalls.push({ userId, email });
+    claimBootstrapProfile: async (
+      userId: string,
+      email: string,
+      fullName: string,
+    ) => {
+      claimCalls.push({ userId, email, fullName });
       return claimResult;
     },
   },
@@ -50,7 +58,11 @@ mock.module("@/lib/supabase/server.ts", {
   exports: {
     createClient: async () => ({
       auth: {
-        signUp: async (args: { email: string; password: string }) => {
+        signUp: async (args: {
+          email: string;
+          password: string;
+          options?: { data?: { full_name?: string } };
+        }) => {
           signUpCalls.push(args);
           return signUpResult;
         },
@@ -89,7 +101,12 @@ function formData(fields: Record<string, string>): FormData {
 }
 
 const validForm = () =>
-  formData({ email: "dueno@agencia.com", password: "password-9" });
+  formData({
+    name: "Dueño Agencia",
+    email: "dueno@agencia.com",
+    password: "password-9",
+    confirmPassword: "password-9",
+  });
 
 // ── validation ───────────────────────────────────────────────────────────────
 
@@ -97,9 +114,14 @@ test("rejects a password shorter than 8 chars without touching auth", async () =
   reset();
   const res = await signup(
     null,
-    formData({ email: "a@b.com", password: "1234567" }),
+    formData({
+      name: "Ana",
+      email: "a@b.com",
+      password: "1234567",
+      confirmPassword: "1234567",
+    }),
   );
-  assert.match(res.error, /8 caracteres/);
+  assert.match(res.fieldErrors?.password, /8 caracteres/);
   assert.equal(signUpCalls.length, 0);
 });
 
@@ -107,9 +129,44 @@ test("rejects an invalid email without touching auth", async () => {
   reset();
   const res = await signup(
     null,
-    formData({ email: "not-an-email", password: "password-9" }),
+    formData({
+      name: "Ana",
+      email: "not-an-email",
+      password: "password-9",
+      confirmPassword: "password-9",
+    }),
   );
-  assert.ok(res.error);
+  assert.ok(res.fieldErrors?.email);
+  assert.equal(signUpCalls.length, 0);
+});
+
+test("rejects a missing name without touching auth", async () => {
+  reset();
+  const res = await signup(
+    null,
+    formData({
+      name: "",
+      email: "a@b.com",
+      password: "password-9",
+      confirmPassword: "password-9",
+    }),
+  );
+  assert.ok(res.fieldErrors?.name);
+  assert.equal(signUpCalls.length, 0);
+});
+
+test("rejects a password/confirm mismatch without touching auth", async () => {
+  reset();
+  const res = await signup(
+    null,
+    formData({
+      name: "Ana",
+      email: "a@b.com",
+      password: "password-9",
+      confirmPassword: "password-8",
+    }),
+  );
+  assert.match(res.fieldErrors?.confirmPassword, /no coinciden/);
   assert.equal(signUpCalls.length, 0);
 });
 
@@ -176,9 +233,17 @@ test("happy path: profile claim runs with the new user, then redirects to login"
   // The regression the gate rewrite fixed: the profile must be written (the
   // claim does the public.users upsert) — not just the auth user left alone.
   assert.deepEqual(claimCalls, [
-    { userId: "user_new", email: "dueno@agencia.com" },
+    {
+      userId: "user_new",
+      email: "dueno@agencia.com",
+      fullName: "Dueño Agencia",
+    },
   ]);
   assert.deepEqual(signUpCalls, [
-    { email: "dueno@agencia.com", password: "password-9" },
+    {
+      email: "dueno@agencia.com",
+      password: "password-9",
+      options: { data: { full_name: "Dueño Agencia" } },
+    },
   ]);
 });

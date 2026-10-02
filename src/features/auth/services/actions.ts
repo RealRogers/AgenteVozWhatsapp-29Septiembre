@@ -27,12 +27,26 @@ const loginSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 });
 
-const signupSchema = z.object({
-  email: z.string().email("Email inválido"),
-  // 8 chars to match seed-admin.mjs — tighter than login's 6 because this
-  // sets a NEW password, it doesn't validate an existing one.
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
-});
+const signupSchema = z
+  .object({
+    name: z.string().trim().min(2, "Escribe tu nombre"),
+    email: z.string().email("Email inválido"),
+    // 8 chars to match seed-admin.mjs — tighter than login's 6 because this
+    // sets a NEW password, it doesn't validate an existing one.
+    password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ["confirmPassword"],
+  });
+
+type SignupField = "name" | "email" | "password" | "confirmPassword";
+
+export interface SignupState {
+  error?: string;
+  fieldErrors?: Partial<Record<SignupField, string>>;
+}
 
 export interface LoginState {
   error?: string;
@@ -76,16 +90,30 @@ export async function login(
 }
 
 export async function signup(
-  _prevState: { error: string } | null,
+  _prevState: SignupState | null,
   formData: FormData,
-): Promise<{ error: string }> {
+): Promise<SignupState> {
   const parsed = signupSchema.safeParse({
+    name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
+    const fieldErrors: Partial<Record<SignupField, string>> = {};
+    for (const issue of parsed.error.issues) {
+      const field = issue.path[0];
+      if (
+        field === "name" ||
+        field === "email" ||
+        field === "password" ||
+        field === "confirmPassword"
+      ) {
+        fieldErrors[field] ??= issue.message;
+      }
+    }
+    return { fieldErrors };
   }
 
   // Invite-only: only the first user (agency super admin) may self-register.
@@ -100,6 +128,7 @@ export async function signup(
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
+    options: { data: { full_name: parsed.data.name } },
   });
 
   if (error) {
@@ -119,7 +148,11 @@ export async function signup(
   // No signup trigger creates public.users rows — the profile + super-admin
   // flag are written here. If another bootstrap won the gate meanwhile, the
   // orphaned auth user is rolled back inside claimBootstrapProfile.
-  const claimed = await claimBootstrapProfile(data.user.id, parsed.data.email);
+  const claimed = await claimBootstrapProfile(
+    data.user.id,
+    parsed.data.email,
+    parsed.data.name,
+  );
   if (!claimed) {
     return {
       error:

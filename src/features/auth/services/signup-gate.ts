@@ -46,6 +46,7 @@ export async function isSignupOpen(): Promise<boolean> {
 export async function claimBootstrapProfile(
   userId: string,
   email: string,
+  fullName: string,
 ): Promise<boolean> {
   const service = admin();
 
@@ -58,7 +59,7 @@ export async function claimBootstrapProfile(
     {
       id: userId,
       email,
-      full_name: email.split("@")[0],
+      full_name: fullName.trim() || email.split("@")[0],
       is_super_admin: true,
     },
     { onConflict: "id" },
