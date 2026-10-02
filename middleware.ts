@@ -40,8 +40,9 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  // Routes reachable without a session.
+  // Routes reachable without a session. "/" is the public marketing landing.
   const publicRoutes = [
+    "/",
     "/login",
     "/signup",
     "/forgot-password",
@@ -55,11 +56,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Authenticated users don't belong on entry auth pages — but /reset-password
-  // is reached WITH a recovery session, so it must stay accessible.
+  // Authenticated users don't belong on the landing or entry auth pages — but
+  // /reset-password is reached WITH a recovery session, so it stays accessible.
   if (
     user &&
-    (pathname === "/login" ||
+    (pathname === "/" ||
+      pathname === "/login" ||
       pathname === "/signup" ||
       pathname === "/forgot-password")
   ) {
