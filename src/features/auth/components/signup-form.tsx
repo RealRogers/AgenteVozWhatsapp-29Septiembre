@@ -68,6 +68,7 @@ export function SignupForm() {
             type="password"
             placeholder="••••••••"
             autoComplete="new-password"
+            minLength={8}
             aria-required="true"
             required
           />

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { isSignupOpen, markAsSuperAdmin } from "./signup-gate";
+import { isSignupOpen, claimBootstrapProfile } from "./signup-gate";
 
 // Map Supabase auth error messages (English) to Spanish for the UI.
 // Falls back to the original message when there is no known translation.
@@ -29,7 +29,9 @@ const loginSchema = z.object({
 
 const signupSchema = z.object({
   email: z.string().email("Email inválido"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  // 8 chars to match seed-admin.mjs — tighter than login's 6 because this
+  // sets a NEW password, it doesn't validate an existing one.
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
 });
 
 export interface LoginState {
@@ -104,9 +106,25 @@ export async function signup(
     return { error: localizeAuthError(error.message) };
   }
 
-  // First registration becomes the agency super admin.
-  if (data.user) {
-    await markAsSuperAdmin(data.user.id);
+  if (!data.user) {
+    return { error: "No se pudo crear la cuenta. Intenta de nuevo." };
+  }
+
+  // signUp returns an obfuscated user with empty identities when the email is
+  // already registered (it doesn't error, to avoid leaking account existence).
+  if (data.user.identities?.length === 0) {
+    return { error: localizeAuthError("User already registered") };
+  }
+
+  // No signup trigger creates public.users rows — the profile + super-admin
+  // flag are written here. If another bootstrap won the gate meanwhile, the
+  // orphaned auth user is rolled back inside claimBootstrapProfile.
+  const claimed = await claimBootstrapProfile(data.user.id, parsed.data.email);
+  if (!claimed) {
+    return {
+      error:
+        "El registro está cerrado. Pide al administrador que te invite a tu cuenta.",
+    };
   }
 
   redirect("/login?message=Revisa%20tu%20email");
