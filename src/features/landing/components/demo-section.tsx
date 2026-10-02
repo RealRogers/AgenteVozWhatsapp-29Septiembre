@@ -3,11 +3,11 @@
 import { useCallback, useRef, useState } from "react";
 import { DEMO_START_MINUTES, demoPresets } from "../data/scripts";
 import { useChatPlayback } from "../hooks/use-chat-playback";
-import { useOnViewOnce } from "../hooks/use-on-view";
+import { useOnView, useOnViewOnce } from "../hooks/use-on-view";
 import { ChatFrame } from "./chat-frame";
 
 export function DemoSection() {
-  const { play, ...playback } = useChatPlayback(DEMO_START_MINUTES);
+  const { play, pause, resume, ...playback } = useChatPlayback(DEMO_START_MINUTES);
   const [selected, setSelected] = useState<number | null>(null);
   const chatRef = useRef<HTMLDivElement | null>(null);
 
@@ -20,6 +20,10 @@ export function DemoSection() {
   );
 
   useOnViewOnce(chatRef, () => runPreset(0));
+  useOnView(chatRef, {
+    onEnter: () => resume("viewport"),
+    onLeave: () => pause("viewport"),
+  });
 
   return (
     <section id="demo">

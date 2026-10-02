@@ -39,3 +39,34 @@ export function useOnViewOnce<T extends HTMLElement>(
     return () => observer.disconnect();
   }, [ref]);
 }
+
+/**
+ * Versión continua de useOnViewOnce: dispara `onEnter`/`onLeave` cada vez
+ * que el elemento cruza el umbral (0.35). Sin IntersectionObserver no
+ * dispara nada (se asume siempre visible).
+ */
+export function useOnView<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+  { onEnter, onLeave }: { onEnter?: () => void; onLeave?: () => void },
+) {
+  const cbsRef = useRef({ onEnter, onLeave });
+  useEffect(() => {
+    cbsRef.current = { onEnter, onLeave };
+  }, [onEnter, onLeave]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0];
+        if (!e) return;
+        if (e.isIntersecting) cbsRef.current.onEnter?.();
+        else cbsRef.current.onLeave?.();
+      },
+      { threshold: 0.35 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+}

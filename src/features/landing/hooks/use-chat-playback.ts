@@ -41,6 +41,25 @@ const IDLE: PlaybackState = {
   finished: false,
 };
 
+/** Timeout pendiente: la cadena de reproducción es secuencial, así que hay
+ * uno solo en vuelo. `remaining` se descuenta al pausar y se rearma al
+ * reanudar. */
+interface PendingTimer {
+  id: number;
+  gen: number;
+  f: () => void;
+  remaining: number;
+  startedAt: number;
+}
+
+/** Intervalo pendiente (barras de la voice note). `f` conserva el contador
+ * `lit` en su closure, así que pausar/rearmar no pierde el progreso. */
+interface PendingInterval {
+  id: number;
+  ms: number;
+  f: () => void;
+}
+
 function prefersReducedMotion(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -54,22 +73,72 @@ function prefersReducedMotion(): boolean {
  * Port del play()/add()/typing()/bars() del HTML a estado React:
  * `play(script)` encadena setTimeout (usa 0ms si el usuario pidió
  * reduced-motion y en ese caso renderiza el guion completo de inmediato).
+ *
+ * `pause(reason)` / `resume(reason)` congelan la cadena: las razones se
+ * acumulan en un Set y la reproducción solo continúa cuando todas se
+ * retiran (p.ej. fuera de viewport Y pestaña oculta a la vez). El hook ya
+ * pausa solo con `document.hidden`; los consumidores pausan por viewport.
  */
 export function useChatPlayback(startMinutes: number) {
   const [state, setState] = useState<PlaybackState>(IDLE);
-  const timersRef = useRef<number[]>([]);
-  const intervalsRef = useRef<number[]>([]);
+  const pendingTimerRef = useRef<PendingTimer | null>(null);
+  const pendingIntervalRef = useRef<PendingInterval | null>(null);
+  const pauseReasonsRef = useRef<Set<string>>(new Set());
   const msgIdRef = useRef(0);
   const genRef = useRef(0);
 
+  const armTimer = useCallback((t: PendingTimer) => {
+    t.startedAt = Date.now();
+    t.id = window.setTimeout(() => {
+      if (pendingTimerRef.current === t) pendingTimerRef.current = null;
+      if (genRef.current === t.gen) t.f();
+    }, Math.max(0, t.remaining));
+  }, []);
+
+  const pause = useCallback((reason: string) => {
+    const reasons = pauseReasonsRef.current;
+    if (reasons.has(reason)) return;
+    reasons.add(reason);
+    if (reasons.size > 1) return; // ya estaba pausado por otro motivo
+    const t = pendingTimerRef.current;
+    if (t) {
+      window.clearTimeout(t.id);
+      t.remaining -= Date.now() - t.startedAt;
+    }
+    const iv = pendingIntervalRef.current;
+    if (iv) window.clearInterval(iv.id);
+  }, []);
+
+  const resume = useCallback(
+    (reason: string) => {
+      const reasons = pauseReasonsRef.current;
+      if (!reasons.delete(reason) || reasons.size > 0) return;
+      const t = pendingTimerRef.current;
+      if (t) armTimer(t);
+      const iv = pendingIntervalRef.current;
+      if (iv) iv.id = window.setInterval(iv.f, iv.ms);
+    },
+    [armTimer],
+  );
+
   const clearAll = useCallback(() => {
-    timersRef.current.forEach((t) => window.clearTimeout(t));
-    intervalsRef.current.forEach((i) => window.clearInterval(i));
-    timersRef.current = [];
-    intervalsRef.current = [];
+    const t = pendingTimerRef.current;
+    if (t) window.clearTimeout(t.id);
+    const iv = pendingIntervalRef.current;
+    if (iv) window.clearInterval(iv.id);
+    pendingTimerRef.current = null;
+    pendingIntervalRef.current = null;
   }, []);
 
   useEffect(() => clearAll, [clearAll]);
+
+  // La cadena no corre con la pestaña oculta.
+  useEffect(() => {
+    const onVisibility = () =>
+      document.hidden ? pause("hidden") : resume("hidden");
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [pause, resume]);
 
   const play = useCallback(
     (script: ChatEvent[], onDone?: () => void) => {
@@ -131,10 +200,27 @@ export function useChatPlayback(startMinutes: number) {
       });
 
       const later = (ms: number, f: () => void) => {
-        const id = window.setTimeout(() => {
-          if (genRef.current === gen) f();
-        }, ms);
-        timersRef.current.push(id);
+        const prev = pendingTimerRef.current;
+        if (prev) window.clearTimeout(prev.id);
+        const t: PendingTimer = { id: 0, gen, f, remaining: ms, startedAt: 0 };
+        pendingTimerRef.current = t;
+        // Si está pausado el timer queda registrado pero sin armar;
+        // resume() lo activa con el `remaining` intacto.
+        if (pauseReasonsRef.current.size === 0) armTimer(t);
+      };
+
+      const stopInterval = () => {
+        const slot = pendingIntervalRef.current;
+        if (slot) window.clearInterval(slot.id);
+        pendingIntervalRef.current = null;
+      };
+
+      const startInterval = (ms: number, f: () => void) => {
+        const slot: PendingInterval = { id: 0, ms, f };
+        pendingIntervalRef.current = slot;
+        if (pauseReasonsRef.current.size === 0) {
+          slot.id = window.setInterval(f, ms);
+        }
       };
 
       let i = 0;
@@ -178,21 +264,20 @@ export function useChatPlayback(startMinutes: number) {
             const id = pushMsg(event);
             if (event.voice) {
               let lit = 0;
-              const iv = window.setInterval(() => {
+              startInterval(VOICE_BAR_MS, () => {
                 if (genRef.current !== gen) {
-                  window.clearInterval(iv);
+                  stopInterval();
                   return;
                 }
                 lit += 1;
                 if (lit >= VOICE_BAR_HEIGHTS.length) {
                   setVoiceLit(id, VOICE_BAR_HEIGHTS.length);
-                  window.clearInterval(iv);
+                  stopInterval();
                   later(400, next);
                 } else {
                   setVoiceLit(id, lit);
                 }
-              }, VOICE_BAR_MS);
-              intervalsRef.current.push(iv);
+              });
             } else {
               later(600, next);
             }
@@ -212,8 +297,8 @@ export function useChatPlayback(startMinutes: number) {
       };
       next();
     },
-    [startMinutes, clearAll],
+    [startMinutes, clearAll, armTimer],
   );
 
-  return { ...state, play };
+  return { ...state, play, pause, resume };
 }

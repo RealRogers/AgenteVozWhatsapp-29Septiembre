@@ -3,15 +3,19 @@
 import { useCallback, useRef } from "react";
 import { HERO_START_MINUTES, heroScript } from "../data/scripts";
 import { useChatPlayback } from "../hooks/use-chat-playback";
-import { useOnViewOnce } from "../hooks/use-on-view";
+import { useOnView, useOnViewOnce } from "../hooks/use-on-view";
 import { ChatFrame } from "./chat-frame";
 
 export function HeroSection() {
-  const { play, ...playback } = useChatPlayback(HERO_START_MINUTES);
+  const { play, pause, resume, ...playback } = useChatPlayback(HERO_START_MINUTES);
   const chatRef = useRef<HTMLDivElement | null>(null);
 
   const run = useCallback(() => play(heroScript), [play]);
   useOnViewOnce(chatRef, run);
+  useOnView(chatRef, {
+    onEnter: () => resume("viewport"),
+    onLeave: () => pause("viewport"),
+  });
 
   return (
     <section className="lx-hero pt-16 pb-20">
