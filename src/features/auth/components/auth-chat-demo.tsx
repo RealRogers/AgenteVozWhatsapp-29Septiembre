@@ -32,6 +32,7 @@ const SCRIPT: DemoMessage[] = [
 const REVEAL_MS = 1100;
 const TYPING_MS = 1600;
 const RESTART_MS = 4500;
+const FADE_MS = 550;
 
 // Flattened playback timeline: agent messages get a "typing" beat before
 // their bubble appears; customer/system beats reveal directly.
@@ -115,7 +116,8 @@ function TypingBubble() {
 /**
  * Scripted, self-playing WhatsApp-style conversation shown next to the auth
  * card on desktop. Loops: customer asks → the AI (lime) books the slot → a
- * human agent takes over. Decorative — the whole panel is aria-hidden.
+ * human agent takes over → the thread fades out and starts again.
+ * Decorative — the whole panel is aria-hidden.
  *
  * Renders the full script statically when the user prefers reduced motion or
  * the viewport is below lg (the panel is hidden there anyway).
@@ -140,17 +142,22 @@ export function AuthChatDemo() {
     };
   }, []);
 
-  // The loop: reveal messages one by one, then restart after a pause.
+  // The loop: reveal messages one by one, dwell on the full conversation,
+  // fade the thread out, then restart from an empty (still transparent)
+  // container so the cut never reads as a reset.
   useEffect(() => {
     if (!animated) return;
     const beat = TIMELINE[step];
-    const delay = !beat
-      ? RESTART_MS
-      : beat.kind === "typing"
-        ? TYPING_MS
-        : REVEAL_MS;
+    const delay =
+      step === TIMELINE.length
+        ? RESTART_MS
+        : step > TIMELINE.length
+          ? FADE_MS
+          : beat.kind === "typing"
+            ? TYPING_MS
+            : REVEAL_MS;
     const t = setTimeout(
-      () => setStep((s) => (s >= TIMELINE.length ? 0 : s + 1)),
+      () => setStep((s) => (s > TIMELINE.length ? 0 : s + 1)),
       delay,
     );
     return () => clearTimeout(t);
@@ -161,6 +168,8 @@ export function AuthChatDemo() {
     b.kind === "msg" ? [SCRIPT[b.index]] : [],
   );
   const typing = TIMELINE[step]?.kind === "typing";
+  // step past the end = fade-out phase (bubbles still rendered).
+  const fading = step > TIMELINE.length;
 
   return (
     <aside className="relative hidden lg:block" aria-hidden="true">
@@ -188,7 +197,13 @@ export function AuthChatDemo() {
         </div>
 
         {/* Messages — newest stack upward like a real thread */}
-        <div className="flex h-[380px] flex-col justify-end gap-3 px-5 py-4">
+        <div
+          className={cn(
+            "flex h-[380px] flex-col justify-end gap-3 px-5 py-4",
+            "motion-safe:transition-opacity motion-safe:duration-500",
+            fading && "opacity-0",
+          )}
+        >
           {shown.map((m, i) => (
             <DemoBubble key={i} message={m} />
           ))}
