@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAllWorkspacesWithStats } from "@/features/agency/services/agency-actions";
 import { WorkspacesTable } from "@/features/agency/components/workspaces-table";
+import { InviteRequestsCard } from "@/features/agency/components/invite-requests";
 import { Building2, Users, MessageCircle, Wifi } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +97,9 @@ export default async function AgencyWorkspacesPage() {
           </p>
         </div>
       )}
+
+      {/* Pending access requests from the public intake */}
+      <InviteRequestsCard workspaces={workspaces} />
 
       {/* Table */}
       <WorkspacesTable workspaces={workspaces} />

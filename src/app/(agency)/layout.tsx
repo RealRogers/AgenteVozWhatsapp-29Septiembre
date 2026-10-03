@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
-import { Building2, LogOut, Settings } from "lucide-react";
+import { Building2, LogOut } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/features/auth/services/actions";
 import { Badge } from "@/components/ui/badge";
+import { AppButton } from "@/features/agency/components/app-button";
 
 export default async function AgencyLayout({
   children,
@@ -50,16 +51,7 @@ export default async function AgencyLayout({
         </div>
 
         <div className="flex items-center gap-1">
-          <Link href="/inbox">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Settings className="h-4 w-4" aria-hidden="true" />
-              <span className="sr-only sm:not-sr-only sm:ml-2">App</span>
-            </Button>
-          </Link>
+          <AppButton />
 
           <form action={logout}>
             <Button

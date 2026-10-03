@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
+import { toast } from "sonner";
 import {
   Loader2,
   Mail,
@@ -66,7 +67,39 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [capsLock, setCapsLock] = useState(false);
 
+  // "Solicitar acceso" — invite request intake shown when signup is closed.
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [reqName, setReqName] = useState("");
+  const [reqEmail, setReqEmail] = useState("");
+  const [reqNote, setReqNote] = useState("");
+  const [reqWebsite, setReqWebsite] = useState(""); // honeypot
+  const [reqSent, setReqSent] = useState(false);
+  const [reqSending, setReqSending] = useState(false);
+
   const fieldsEmpty = !email.trim() || !password;
+
+  async function handleInviteRequest(e: FormEvent) {
+    e.preventDefault();
+    setReqSending(true);
+    try {
+      const res = await fetch("/api/invite-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: reqName,
+          email: reqEmail,
+          note: reqNote || undefined,
+          website: reqWebsite || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("request failed");
+      setReqSent(true);
+    } catch {
+      toast.error("No se pudo enviar. Intenta de nuevo.");
+    } finally {
+      setReqSending(false);
+    }
+  }
 
   return (
     <div
@@ -213,10 +246,11 @@ export function LoginForm({
       </form>
 
       {/* Footer del card — el link a /signup solo existe mientras el gate
-          bootstrap esté abierto; cerrado, un enlace solo rebotaría aquí */}
-      <div className="pt-2 border-t border-border/40 text-center">
+          bootstrap esté abierto; cerrado, se ofrece el formulario real de
+          solicitud de acceso (invite_requests → panel de agencia) */}
+      <div className="pt-2 border-t border-border/40">
         {signupOpen ? (
-          <p className="text-xs text-muted-foreground font-body">
+          <p className="text-xs text-muted-foreground font-body text-center">
             ¿Primera vez aquí?{" "}
             <Link
               href="/signup"
@@ -225,9 +259,84 @@ export function LoginForm({
               Crea la cuenta de administrador
             </Link>
           </p>
+        ) : reqSent ? (
+          <p className="text-xs text-muted-foreground font-body text-center" role="status">
+            Solicitud enviada. Si es aprobada, tu administrador te contactará.
+          </p>
+        ) : requestOpen ? (
+          <form onSubmit={handleInviteRequest} className="space-y-3 text-left">
+            <p className="text-xs text-muted-foreground font-body text-center">
+              Acceso por invitación — deja tus datos y tu administrador te contactará
+            </p>
+            {/* Honeypot: invisible para humanos, los bots lo llenan */}
+            <input
+              type="text"
+              name="website"
+              value={reqWebsite}
+              onChange={(e) => setReqWebsite(e.target.value)}
+              className="hidden"
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+            />
+            <Input
+              name="name"
+              type="text"
+              placeholder="Tu nombre"
+              autoComplete="name"
+              maxLength={100}
+              required
+              value={reqName}
+              onChange={(e) => setReqName(e.target.value)}
+              className={cn(inputClasses, "h-9 text-sm")}
+            />
+            <Input
+              name="request-email"
+              type="email"
+              placeholder="tu@email.com"
+              autoComplete="email"
+              maxLength={320}
+              required
+              value={reqEmail}
+              onChange={(e) => setReqEmail(e.target.value)}
+              className={cn(inputClasses, "h-9 text-sm")}
+            />
+            <Input
+              name="note"
+              type="text"
+              placeholder="¿Para qué empresa trabajas? (opcional)"
+              maxLength={500}
+              value={reqNote}
+              onChange={(e) => setReqNote(e.target.value)}
+              className={cn(inputClasses, "h-9 text-sm")}
+            />
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="submit"
+                disabled={reqSending || !reqName.trim() || !reqEmail.trim()}
+                className="text-xs font-medium text-primary underline-offset-4 hover:underline transition-colors disabled:opacity-50"
+              >
+                {reqSending ? "Enviando…" : "Enviar solicitud"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRequestOpen(false)}
+                className="text-xs text-muted-foreground underline-offset-4 hover:underline transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
         ) : (
-          <p className="text-xs text-muted-foreground font-body">
-            Acceso por invitación · pide a tu administrador que te agregue
+          <p className="text-xs text-muted-foreground font-body text-center">
+            Acceso por invitación ·{" "}
+            <button
+              type="button"
+              onClick={() => setRequestOpen(true)}
+              className="text-primary font-medium underline-offset-4 hover:underline transition-colors duration-150"
+            >
+              Solicitar acceso
+            </button>
           </p>
         )}
       </div>

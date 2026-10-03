@@ -3,7 +3,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ACTIVE_WORKSPACE_COOKIE } from "./active-workspace";
+import {
+  ACTIVE_WORKSPACE_COOKIE,
+  getActiveWorkspace,
+} from "./active-workspace";
 
 /**
  * Sets the active-workspace cookie after verifying the user is an active member
@@ -48,4 +51,34 @@ export async function switchWorkspace(
   });
 
   if (redirectTo) redirect(redirectTo);
+}
+
+/**
+ * Resolves which workspace the app should open — the cookie-selected one when
+ * it still matches an active membership, else the first membership — and writes
+ * the cookie so the inbox's super-admin guard (which requires the cookie to
+ * exist) lets the navigation through instead of bouncing back to /workspaces.
+ * Used by the agency header's "App" button; the caller navigates client-side.
+ */
+export async function enterApp(): Promise<{ error?: string } | void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const membership = await getActiveWorkspace(supabase, user.id);
+  if (!membership) {
+    return { error: "No tienes un workspace activo para abrir." };
+  }
+
+  const cookieStore = await cookies();
+  if (cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value !== membership.workspace_id) {
+    cookieStore.set(ACTIVE_WORKSPACE_COOKIE, membership.workspace_id, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
 }
