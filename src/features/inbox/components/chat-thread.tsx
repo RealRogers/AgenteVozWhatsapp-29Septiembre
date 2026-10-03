@@ -380,7 +380,7 @@ export function ChatThread({
                   className="h-8 gap-1.5 text-xs text-amber-400 border-amber-400/30 hover:bg-amber-400/10"
                 >
                   <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                  Handoff
+                  <span className="sr-only sm:not-sr-only">Handoff</span>
                 </Button>
               </RoleGate>
             )}
@@ -398,7 +398,7 @@ export function ChatThread({
                   className="h-8 gap-1.5 text-xs"
                 >
                   <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                  Tomar
+                  <span className="sr-only sm:not-sr-only">Tomar</span>
                 </Button>
               </RoleGate>
             )}
@@ -416,7 +416,7 @@ export function ChatThread({
                   className="h-8 gap-1.5 text-xs"
                 >
                   <Bot className="h-3.5 w-3.5" aria-hidden="true" />
-                  Devolver a IA
+                  <span className="sr-only sm:not-sr-only">Devolver a IA</span>
                 </Button>
               </RoleGate>
             )}

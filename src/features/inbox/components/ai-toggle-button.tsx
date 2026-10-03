@@ -33,7 +33,7 @@ export function AiToggleButton({
       <Label
         htmlFor={switchId}
         className={cn(
-          "text-xs font-medium cursor-pointer select-none transition-colors duration-150",
+          "sr-only sm:not-sr-only text-xs font-medium cursor-pointer select-none transition-colors duration-150",
           aiEnabled ? "text-primary" : "text-muted-foreground",
         )}
       >
