@@ -475,7 +475,7 @@ export function TeamTab({ workspaceId }: Props) {
                     }
                     className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                       member.is_active
-                        ? "text-muted-foreground hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100"
+                        ? "text-muted-foreground hover:bg-destructive/10 hover:text-destructive opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                         : "text-success hover:bg-success/10"
                     }`}
                   >
