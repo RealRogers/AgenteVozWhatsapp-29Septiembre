@@ -76,7 +76,7 @@ export function SettingsShell({
         </div>
 
         <TabsContent value="agentes">
-          <div className="p-6 space-y-6 rounded-lg border border-border/60 bg-card">
+          <div className="p-4 sm:p-6 space-y-6 rounded-lg border border-border/60 bg-card">
             <AgentsTab
               workspaceId={workspaceId}
               initialAgents={initialAgents}
@@ -88,7 +88,7 @@ export function SettingsShell({
         </TabsContent>
 
         <TabsContent value="integraciones">
-          <div className="p-6 space-y-6 rounded-lg border border-border/60 bg-card">
+          <div className="p-4 sm:p-6 space-y-6 rounded-lg border border-border/60 bg-card">
             <IntegrationsTab
               workspaceId={workspaceId}
               role={role}
@@ -99,13 +99,13 @@ export function SettingsShell({
         </TabsContent>
 
         <TabsContent value="negocio">
-          <div className="p-6 space-y-6 rounded-lg border border-border/60 bg-card">
+          <div className="p-4 sm:p-6 space-y-6 rounded-lg border border-border/60 bg-card">
             <BusinessInfoForm workspaceId={workspaceId} initial={biForForm} />
           </div>
         </TabsContent>
 
         <TabsContent value="tools">
-          <div className="p-6 space-y-6 rounded-lg border border-border/60 bg-card">
+          <div className="p-4 sm:p-6 space-y-6 rounded-lg border border-border/60 bg-card">
             <ToolsCatalog
               workspaceId={workspaceId}
               role={role}
@@ -117,14 +117,14 @@ export function SettingsShell({
         {/* n8n tools hold a webhook secret: admins only, like the API. */}
         {role === "admin" && (
           <TabsContent value="n8n">
-            <div className="p-6 space-y-6 rounded-lg border border-border/60 bg-card">
+            <div className="p-4 sm:p-6 space-y-6 rounded-lg border border-border/60 bg-card">
               <N8nToolsTab workspaceId={workspaceId} />
             </div>
           </TabsContent>
         )}
 
         <TabsContent value="templates">
-          <div className="p-6 rounded-lg border border-border/60 bg-card">
+          <div className="p-4 sm:p-6 rounded-lg border border-border/60 bg-card">
             <TemplatesTab
               workspaceId={workspaceId}
               initialTemplates={initialTemplates}
@@ -132,19 +132,19 @@ export function SettingsShell({
           </div>
         </TabsContent>
         <TabsContent value="knowledge-base">
-          <div className="p-6 space-y-6 rounded-lg border border-border/60 bg-card">
+          <div className="p-4 sm:p-6 space-y-6 rounded-lg border border-border/60 bg-card">
             <KbTab workspaceId={workspaceId} />
           </div>
         </TabsContent>
 
         <TabsContent value="equipo">
-          <div className="p-6 space-y-6 rounded-lg border border-border/60 bg-card">
+          <div className="p-4 sm:p-6 space-y-6 rounded-lg border border-border/60 bg-card">
             <TeamTab workspaceId={workspaceId} />
           </div>
         </TabsContent>
 
         <TabsContent value="automatizaciones">
-          <div className="p-6 space-y-6 rounded-lg border border-border/60 bg-card">
+          <div className="p-4 sm:p-6 space-y-6 rounded-lg border border-border/60 bg-card">
             <AutomationsTab workspaceId={workspaceId} />
           </div>
         </TabsContent>

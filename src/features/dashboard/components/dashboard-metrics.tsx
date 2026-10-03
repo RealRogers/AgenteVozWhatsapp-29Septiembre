@@ -110,7 +110,7 @@ export function DashboardMetrics({
   recentConversations,
 }: DashboardMetricsProps) {
   return (
-    <div className="p-6 space-y-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-8 max-w-5xl mx-auto">
       {/* Page heading */}
       <div>
         <h1 className="font-display text-xl font-semibold text-foreground">
