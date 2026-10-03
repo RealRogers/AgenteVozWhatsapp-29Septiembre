@@ -13,6 +13,7 @@ import {
   X,
   FileText,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -342,13 +343,27 @@ export function ChatThread({
             "px-4 py-3 border-b border-border/50",
           )}
         >
-          <div className="space-y-0.5 min-w-0">
-            <h2 className="font-display text-sm font-semibold text-foreground truncate">
-              {conversation.contact.name ?? conversation.contact.phone}
-            </h2>
-            <p className="font-mono text-[10px] text-muted-foreground">
-              {conversation.contact.phone}
-            </p>
+          <div className="flex items-center gap-1 min-w-0">
+            {/* Back to the conversation list — mobile only, where the list
+                and the thread render as separate views. */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push("/inbox")}
+              aria-label="Volver a la lista de conversaciones"
+              className="-ml-2 h-8 w-8 shrink-0 md:hidden"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <div className="space-y-0.5 min-w-0">
+              <h2 className="font-display text-sm font-semibold text-foreground truncate">
+                {conversation.contact.name ?? conversation.contact.phone}
+              </h2>
+              <p className="font-mono text-[10px] text-muted-foreground">
+                {conversation.contact.phone}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 shrink-0">

@@ -46,6 +46,10 @@ export function InboxLayout({
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
 
+  // Mobile shows the list OR the thread, never both: /inbox is the list and
+  // /inbox/[id] is the thread (ChatThread renders a back button to return).
+  const inThread = pathname.startsWith("/inbox/");
+
   // Distinct tags across the loaded conversations — the filter chips.
   const allTags = useMemo(() => {
     const s = new Set<string>();
@@ -90,11 +94,13 @@ export function InboxLayout({
   }, [conversations, search, activeTab, tagFilter]);
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
+    <div className="flex h-[calc(100dvh-7rem)] md:h-[calc(100dvh-3.5rem)] overflow-hidden">
       {/* Left panel — conversation list */}
       <aside
         className={cn(
-          "w-80 shrink-0 border-r border-border/50 flex flex-col overflow-hidden",
+          "shrink-0 flex-col overflow-hidden border-border/50",
+          "w-full md:w-80 md:border-r",
+          inThread ? "hidden md:flex" : "flex",
         )}
         aria-label="Conversaciones"
       >
@@ -227,7 +233,14 @@ export function InboxLayout({
       </aside>
 
       {/* Right panel — thread / detail */}
-      <main className="flex-1 overflow-hidden">{children}</main>
+      <main
+        className={cn(
+          "min-w-0 flex-1 overflow-hidden",
+          inThread ? "block" : "hidden md:block",
+        )}
+      >
+        {children}
+      </main>
     </div>
   );
 }
