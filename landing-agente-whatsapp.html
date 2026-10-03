@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agente WhatsApp con IA | Atiende, agenda y vende 24/7</title>
+<meta name="theme-color" content="#080a0c">
+<meta name="description" content="Un inbox estilo WhatsApp Web donde la IA atiende sola y tu equipo entra cuando quiera. Agenda citas, transcribe notas de voz y guarda leads automáticamente.">
+<meta property="og:title" content="Agente WhatsApp con IA">
+<meta property="og:description" content="Tu WhatsApp atendido 24/7. Tú entras cuando quieras.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#080a0c;--sf:#101417;--sf2:#171c20;--ln:#262d33;--tx:#f5f7f8;--mu:#9aa6ad;--ia:#22c5ea;--hu:#ffffff;--ink:#031014;
+--hd:"Montserrat","Trebuchet MS",sans-serif;--bd:"Instrument Sans","Segoe UI",system-ui,sans-serif;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root[data-theme="light"]{--bg:#f3f5f6;--sf:#fff;--sf2:#e7ecee;--ln:#cdd5d9;--tx:#0b0f12;--mu:#4f5b62;--ia:#0a8fb0;--hu:#0b0f12;--ink:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#080a0c}}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:400 17px/1.6 var(--bd);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--hd);line-height:1.1;margin:0;letter-spacing:-.03em}
+h1{font-size:clamp(2.1rem,5.2vw,3.8rem);font-weight:800}
+h2{font-size:clamp(1.6rem,3.1vw,2.3rem);font-weight:800;max-width:24ch}
+h3{font-size:1.2rem;font-weight:500;letter-spacing:-.01em}
+p{margin:0}a{color:inherit}
+.w{max-width:1120px;margin:0 auto;padding:0 22px}
+section{padding:84px 0}
+.lead{color:var(--mu);max-width:56ch;margin-top:16px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:3px;font:600 1rem var(--bd);text-decoration:none;border:1px solid var(--ln);background:transparent;color:var(--tx);cursor:pointer}
+.btn.p{background:var(--ia);color:var(--ink);border-color:var(--ia);clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)}
+.btn.p:focus-visible{clip-path:none}
+.btn:focus-visible,a:focus-visible,summary:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--hu);outline-offset:3px}
+/* nav */
+header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);border-bottom:1px solid var(--ln);padding-top:env(safe-area-inset-top,0px)}
+header::before{content:"";position:absolute;inset:0;z-index:-1;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.nv{display:flex;align-items:center;justify-content:space-between;height:62px}
+.lg{font:700 1.15rem var(--hd);text-decoration:none;display:flex;gap:8px;align-items:center}
+.lg i{width:14px;height:14px;background:var(--ia);display:inline-block;clip-path:polygon(0 0,100% 0,100% 55%,55% 100%,0 100%)}
+.nv nav{display:flex;gap:18px;align-items:center;font-size:.95rem}
+.nv nav a{text-decoration:none;color:var(--mu)}.nv nav a:hover{color:var(--tx)}
+.nv .btn{padding:9px 16px;color:var(--ink)}
+.mb{display:none;width:44px;height:44px;border:1px solid var(--ln);border-radius:3px;background:transparent;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0}
+.mb span{width:20px;height:2px;background:var(--tx);border-radius:2px;transition:transform .25s,opacity .2s}
+.mb[aria-expanded="true"] span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.mb[aria-expanded="true"] span:nth-child(2){opacity:0}
+.mb[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.nv nav a.on:not(.btn){color:var(--tx);box-shadow:0 2px 0 var(--ia)}
+@media(max-width:1000px){
+.mb{display:flex}
+.nv nav{display:none;position:absolute;left:0;right:0;top:100%;flex-direction:column;align-items:stretch;gap:0;padding:6px 22px 20px;background:color-mix(in srgb,var(--bg) 74%,transparent);-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);border-bottom:1px solid var(--ln);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--tx) 10%,transparent)}
+.nv nav.open{display:flex}
+.nv nav a:not(.btn){padding:14px 0;border-bottom:1px solid var(--ln);font-size:1.05rem;box-shadow:none!important}
+.nv nav .btn{margin-top:16px;justify-content:center;padding:14px}
+}
+@media(prefers-reduced-motion:reduce){.mb span{transition:none}}
+/* hero */
+.hero{padding:64px 0 80px}
+.hg{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center}
+@media(max-width:900px){.hg{grid-template-columns:1fr}}
+.hero .lead{font-size:1.15rem}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
+.note{font-size:.88rem;color:var(--mu);margin-top:14px}
+.phone{background:var(--sf);border:1px solid var(--ln);border-radius:6px;overflow:hidden;box-shadow:0 30px 60px -30px #000a}
+.ph{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--ln);background:var(--sf2)}
+.ph b{font:500 1rem var(--hd)}.ph small{display:block;color:var(--mu);font-size:.78rem}
+.sw{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--mu)}
+.sw span{width:34px;height:20px;border-radius:20px;background:var(--ia);position:relative;transition:background .3s}
+.sw span::after{content:"";position:absolute;top:2px;left:16px;width:16px;height:16px;border-radius:50%;background:var(--ink);transition:left .3s}
+.sw.off span{background:var(--hu)}.sw.off span::after{left:2px}
+.chat{height:380px;padding:16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;scrollbar-width:none;background-image:radial-gradient(color-mix(in srgb,var(--tx) 9%,transparent) 1px,transparent 1.3px);background-size:18px 18px}
+.m{max-width:82%;padding:9px 13px;border-radius:8px;font-size:.93rem;line-height:1.4;animation:in .3s ease}
+.m.c{align-self:flex-start;background:var(--sf2);border-bottom-left-radius:2px}
+.m.ia,.m.hu{align-self:flex-end;border-bottom-right-radius:2px;color:var(--ink)}
+.m.ia{background:var(--ia)}.m.hu{background:var(--hu)}
+.m em{display:block;font:600 .68rem var(--bd);font-style:normal;opacity:.7;margin-bottom:2px}
+.m.sys.day{background:var(--sf2);padding:3px 12px;border-radius:3px;font-size:.72rem}
+.m.sys{align-self:center;background:none;color:var(--mu);font-size:.78rem;padding:2px}
+.mt{display:flex;justify-content:flex-end;align-items:center;gap:4px;font-size:.66rem;opacity:.75;margin-top:3px}
+.m.ia .tk{color:var(--ink)}.m.hu .tk{color:#0a8fb0}
+.vn{display:flex;align-items:center;gap:10px;min-width:210px}
+.pb{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ia);color:var(--ink);flex:none}
+.wv{display:flex;align-items:center;gap:2px;height:26px;flex:1}
+.wv b{width:3px;border-radius:2px;background:var(--mu);opacity:.7}
+.wv b.on{background:var(--ia);opacity:1}
+.du{font-size:.78rem;color:var(--mu)}
+.typ{display:flex;align-items:center;gap:4px}
+.typ em{margin:0 6px 0 0}
+.typ i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ink);opacity:.5;animation:bl 1s infinite}
+.typ i:nth-of-type(2){animation-delay:.15s}.typ i:nth-of-type(3){animation-delay:.3s}
+@keyframes bl{50%{opacity:1;transform:translateY(-2px)}}
+.cmp{pointer-events:none;user-select:none;-webkit-user-select:none;display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--ln);background:var(--sf2);color:var(--mu)}
+.cmp .ti{flex:1;padding:9px 14px;border-radius:4px;background:var(--bg);font-size:.9rem}
+.cmp .mic{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--ia);color:var(--ink)}
+@keyframes in{from{opacity:0;transform:translateY(6px)}}
+@media(prefers-reduced-motion:reduce){.m,.typ i{animation:none}html{scroll-behavior:auto}}
+/* strips */
+.int{border-block:1px solid var(--ln);padding:22px 0}
+.int .w{display:flex;gap:10px 28px;flex-wrap:wrap;align-items:center;color:var(--mu);font-size:.95rem}
+.int b{color:var(--tx);font-weight:600}
+/* problema */
+.pr{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:40px;border-top:1px solid var(--ln)}
+.pr div{padding:22px 20px 0 0}.pr h3{margin-bottom:6px}.pr p{color:var(--mu);font-size:.95rem}
+@media(max-width:900px){.pr{grid-template-columns:1fr 1fr}}@media(max-width:560px){.pr{grid-template-columns:1fr}}
+/* pasos */
+.st{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px;counter-reset:s}
+.st div{padding:26px;border:1px solid var(--ln);border-radius:4px;background:var(--sf);counter-increment:s}
+.st div::before{content:counter(s);display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--ia);color:var(--ink);font:700 1rem var(--hd);margin-bottom:16px}
+.st p{color:var(--mu);margin-top:6px}
+@media(max-width:820px){.st{grid-template-columns:1fr}}
+/* funciones */
+.fn{display:grid;grid-template-columns:1fr 1fr;gap:0 56px;margin-top:36px}
+.fn div{padding:22px 0;border-bottom:1px solid var(--ln)}.fn p{color:var(--mu);margin-top:4px;font-size:.97rem}
+@media(max-width:760px){.fn{grid-template-columns:1fr}}
+/* agentes */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:30px}
+.tabs button{padding:10px 18px;border-radius:3px;border:1px solid var(--ln);background:transparent;color:var(--mu);font:500 .97rem var(--bd);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.tp{margin-top:22px;padding:28px;border:1px solid var(--ln);border-radius:4px;background:var(--sf);display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.tp ul{margin:0;padding-left:18px;color:var(--mu)}.tp li{margin:6px 0}
+.tp p{color:var(--mu);margin-top:8px}
+@media(max-width:760px){.tp{grid-template-columns:1fr}}
+/* demo */
+.demo{display:grid;grid-template-columns:.8fr 1.2fr;gap:36px;align-items:start;margin-top:36px}
+.qs{display:flex;flex-direction:column;gap:10px}
+.qs button{text-align:left;padding:14px 16px;border-radius:3px;border:1px solid var(--ln);background:var(--sf);color:var(--tx);font:500 .97rem var(--bd);cursor:pointer}
+.qs button[aria-pressed="true"]{border-color:var(--ia)}
+.demo .chat{height:340px}
+@media(max-width:820px){.demo{grid-template-columns:1fr}}
+/* industrias */
+.ch{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+.ch span{padding:10px 18px;border:1px solid var(--ln);border-radius:3px;background:var(--sf)}
+/* precios */
+.pl{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px;align-items:stretch}
+.pl>div{padding:28px;border:1px solid var(--ln);border-radius:4px;background:var(--sf);display:flex;flex-direction:column;gap:12px}
+.pl .hot{border-color:var(--ia);background:var(--sf2)}
+.pl .pc{font:700 2.2rem var(--hd)}.pl .pc small{font:400 .9rem var(--bd);color:var(--mu)}
+.pl ul{margin:0;padding-left:18px;color:var(--mu);flex:1}.pl li{margin:5px 0}
+@media(max-width:900px){.pl{grid-template-columns:1fr}}
+/* testimonios / seguridad */
+.tt{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:36px}
+.tt blockquote{margin:0;padding-left:18px;border-left:3px solid var(--ia)}
+.tt cite{display:block;margin-top:10px;color:var(--mu);font-size:.88rem;font-style:normal}
+@media(max-width:820px){.tt{grid-template-columns:1fr}}
+.sc{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:36px}
+.sc p{color:var(--mu);margin-top:6px;font-size:.97rem}
+@media(max-width:820px){.sc{grid-template-columns:1fr}}
+/* faq */
+details{border-bottom:1px solid var(--ln);padding:18px 0;max-width:760px}
+summary{cursor:pointer;font:500 1.1rem var(--hd);list-style:none;display:flex;justify-content:space-between;gap:16px}
+summary::after{content:"+";color:var(--ia);font-size:1.4rem;line-height:1}
+details[open] summary::after{content:"–"}
+details p{color:var(--mu);margin-top:10px}
+/* cta final */
+.fin{background:var(--ia);color:var(--ink)}
+.fin .lead,.fin .fm label{color:var(--ink)}
+.fin .lead{opacity:.85;font-size:1.1rem}
+.fin .ok{color:var(--ink)}
+.fin .btn.p{background:var(--ink);color:var(--ia);border-color:var(--ink)}
+.fin :focus-visible{outline-color:var(--ink)}
+.nm{background:var(--sf2);padding:60px 0}
+.nm .w{display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
+.nm b{display:block;font:700 clamp(3.2rem,8vw,5.8rem)/1 var(--hd);color:var(--ia);letter-spacing:-.03em}
+.nm p{color:var(--mu);margin-top:12px;max-width:28ch}
+@media(max-width:760px){.nm .w{grid-template-columns:1fr}}
+.sp{display:grid;grid-template-columns:.95fr 1.05fr;gap:56px;align-items:center}
+@media(max-width:860px){.sp{grid-template-columns:1fr}.sp .phone{order:2}}
+.ibh{padding:14px 16px;border-bottom:1px solid var(--ln);background:var(--sf2);font:500 1rem var(--hd)}
+.rw{display:flex;align-items:center;gap:12px;width:100%;padding:13px 16px;border:0;border-bottom:1px solid var(--ln);background:transparent;color:var(--tx);font:inherit;text-align:left;cursor:pointer}
+.rw:last-child{border-bottom:0}.rw:hover{background:var(--sf2)}
+.av{flex:none;width:40px;height:40px;border-radius:50%;background:var(--sf2);display:grid;place-items:center;font:600 .95rem var(--hd)}
+.rt{flex:1;min-width:0}.rt strong{display:block;font-weight:600;font-size:.95rem}
+.rt small{display:block;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd{flex:none;padding:3px 11px;border-radius:3px;font:600 .72rem var(--bd);background:var(--ia);color:var(--ink);border:1px solid transparent;transition:background .2s}
+.bd.h{background:var(--hu)}.bd.p{background:transparent;color:var(--hu);border-color:var(--hu)}
+.sp ul{margin:22px 0 0;padding:0;list-style:none}
+.sp li{padding:14px 0;border-top:1px solid var(--ln);color:var(--mu)}
+.sp li b{color:var(--tx);font-weight:600}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+@media(max-width:820px){.fg{grid-template-columns:1fr}}
+.fm{display:grid;gap:12px}
+.fm label{font-size:.9rem;color:var(--mu);display:grid;gap:5px}
+.fm input,.fm select{padding:13px 14px;border-radius:3px;border:1px solid var(--ln);background:var(--bg);color:var(--tx);font:inherit}
+.ok{color:var(--ia);font-weight:600;min-height:1.5em}
+/* footer */
+footer{padding:40px 0 96px;color:var(--mu);font-size:.93rem}
+.ft{display:flex;gap:16px 28px;flex-wrap:wrap;justify-content:space-between;align-items:center}
+.ft nav{display:flex;gap:20px;flex-wrap:wrap}.ft a{text-decoration:none}.ft a:hover{color:var(--tx)}
+.cr{background:none;border:1px solid var(--ln);color:var(--mu);padding:8px 14px;border-radius:3px;cursor:pointer;font:inherit}
+dialog{border:1px solid color-mix(in srgb,var(--tx) 20%,transparent);border-radius:6px;background:color-mix(in srgb,var(--sf) 68%,transparent);-webkit-backdrop-filter:blur(20px) saturate(140%);backdrop-filter:blur(20px) saturate(140%);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--tx) 14%,transparent);color:var(--tx);padding:28px;max-width:340px;text-align:center}
+dialog::backdrop{background:#0008;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+dialog h3{margin-bottom:4px}dialog p{color:var(--mu);margin-bottom:18px}
+dialog .row{display:flex;gap:10px;justify-content:center}
+.wa{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:30;background:color-mix(in srgb,var(--ia) 86%,transparent);-webkit-backdrop-filter:blur(10px) saturate(150%);backdrop-filter:blur(10px) saturate(150%);border:1px solid color-mix(in srgb,#fff 35%,transparent);color:var(--ink);padding:13px 18px;border-radius:4px;font-weight:600;text-decoration:none;box-shadow:0 10px 30px -10px #000}
+.hero{position:relative;overflow:hidden}
+.hero::before,.hero::after{content:"";position:absolute;border-radius:50%;filter:blur(70px);pointer-events:none}
+.hero::before{width:380px;height:380px;right:10%;top:30px;background:var(--ia);opacity:.3}
+.hero::after{width:300px;height:300px;right:-40px;bottom:-60px;background:var(--hu);opacity:.1}
+.hero .hg{position:relative;z-index:1}
+.hero .phone{background:color-mix(in srgb,var(--sf) 62%,transparent);-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);border-color:color-mix(in srgb,var(--tx) 20%,transparent);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--tx) 14%,transparent),0 30px 60px -30px #000a}
+.hero .ph,.hero .cmp{background:color-mix(in srgb,var(--sf2) 55%,transparent)}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+.hero .phone{background:var(--sf)}.hero .ph,.hero .cmp{background:var(--sf2)}
+header{background:var(--bg)}.nv nav.open{background:var(--bg)}dialog{background:var(--sf)}.wa{background:var(--ia)}}
+@media(prefers-reduced-transparency:reduce){
+.hero .phone{background:var(--sf);-webkit-backdrop-filter:none;backdrop-filter:none}.hero .ph,.hero .cmp{background:var(--sf2)}
+header{background:var(--bg)}header::before{display:none}.nv nav.open{background:var(--bg);-webkit-backdrop-filter:none;backdrop-filter:none}dialog{background:var(--sf);-webkit-backdrop-filter:none;backdrop-filter:none}.wa{background:var(--ia);-webkit-backdrop-filter:none;backdrop-filter:none}.hero::before,.hero::after{opacity:.15}}
+.hw{display:flex;flex-direction:column;align-items:center;gap:10px}.hw .phone{width:100%}
+.rp{background:none;border:0;color:var(--mu);font:inherit;font-size:.9rem;cursor:pointer;text-decoration:underline;padding:6px 10px}
+.rp[hidden]{display:inline-block;visibility:hidden}
+.sw{background:none;border:0;color:var(--mu);font:inherit;font-size:.8rem;padding:0}
+.sw[role="switch"]{cursor:pointer}
+.sl{font-style:normal}
+.bkw{display:flex;align-items:center;gap:8px}
+.bk{background:none;border:0;color:var(--tx);font-size:1.3rem;line-height:1;cursor:pointer;padding:6px 8px}
+#ic{height:300px}
+.sp .phone{min-height:430px}
+.rm{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.rm time{font-size:.72rem;color:var(--mu)}
+.rb{display:flex;gap:6px;align-items:center}
+.un{background:var(--ia);color:var(--ink);min-width:20px;height:20px;border-radius:10px;font:700 .72rem var(--bd);display:grid;place-items:center;padding:0 5px}
+.nv .btn.ent{color:var(--tx)}.nv .btn.ent:hover{border-color:var(--ia)}
+@media(max-width:1000px){.nv nav .btn+.btn{margin-top:10px}}
+</style>
+</head>
+<body>
+<header><div class="w nv">
+<a class="lg" href="#top"><i></i>AgenteWA</a>
+<nav id="mn" aria-label="Principal"><a href="#como">Cómo funciona</a><a href="#funciones">Funciones</a><a href="#agentes">Agentes</a><a href="#demo">Demo</a><a href="#precios">Precios</a><a href="#faq">Preguntas</a><a class="btn ent" href="#" id="li">Iniciar sesión</a><a class="btn p" href="#contacto">Agendar demo</a></nav>
+<button class="mb" id="mb" type="button" aria-expanded="false" aria-controls="mn" aria-label="Abrir menú"><span></span><span></span><span></span></button>
+</div></header>
+
+<main id="top">
+<section class="hero"><div class="w hg">
+<div>
+<h1>Tu WhatsApp atendido 24/7. Tú entras cuando quieras.</h1>
+<p class="lead">La IA responde, agenda citas y guarda leads sola. Cuando un cliente necesita a una persona, tu equipo toma el chat con un clic.</p>
+<div class="cta"><a class="btn p" href="#contacto">Probar gratis</a><a class="btn" href="#demo">Ver cómo funciona</a></div>
+<p class="note">Sin tarjeta. Conecta tu número en minutos.</p>
+</div>
+<div class="hw"><div class="phone" role="group" aria-label="Ejemplo de conversación de WhatsApp entre un cliente, la IA y una persona">
+<div class="ph"><div><b>Clínica Dental Sol</b><small id="hs">en línea</small></div><div class="sw" id="sw"><span></span><label id="swl">IA activa</label></div></div>
+<div class="chat" id="hc" aria-live="off"></div><div class="cmp" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9.5h.01M15 9.5h.01"/></svg><span class="ti">Escribe un mensaje</span><span class="mic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></span></div>
+</div>
+<button class="rp" id="rp" type="button" hidden>Ver de nuevo</button></div>
+</div></section>
+
+<div class="int"><div class="w"><b>Se conecta con</b><span>WhatsApp (YCloud)</span><span>GoHighLevel</span><span>OpenRouter</span><span>Cal.com y Calendly</span></div></div>
+
+<section><div class="w">
+<h2>Cada mensaje sin responder es una venta que se enfría</h2>
+<div class="pr">
+<div><h3>Respuestas tardías</h3><p>El lead escribe y nadie contesta hasta mañana. Ya compró en otro lado.</p></div>
+<div><h3>Noches y fines de semana</h3><p>Tu negocio duerme, pero tus clientes no.</p></div>
+<div><h3>Citas que se pierden</h3><p>Ir y venir con horarios consume horas y deja huecos en la agenda.</p></div>
+<div><h3>Equipo saturado</h3><p>Tus asesores contestan lo mismo todo el día en vez de cerrar ventas.</p></div>
+</div></div></section>
+
+<div class="nm"><div class="w">
+<div><b>24/7</b><p>de atención por WhatsApp, también de noche y en fines de semana.</p></div>
+<div><b>1 clic</b><p>para apagar la IA y que una persona de tu equipo tome el chat.</p></div>
+<div><b>3 agentes</b><p>listos para usar: setter, agendamiento y servicio al cliente.</p></div>
+</div></div>
+
+<section id="como" style="background:var(--sf);border-block:1px solid var(--ln)"><div class="w">
+<h2>Listo en tres pasos</h2>
+<div class="st">
+<div><h3>Conecta tu número</h3><p>Vincula tu WhatsApp Business desde el panel. Cada cliente tiene su propio espacio.</p></div>
+<div><h3>Configura tu agente</h3><p>Elige el tipo de agente, escribe tus instrucciones y carga la información de tu negocio.</p></div>
+<div><h3>La IA atiende, tú supervisas</h3><p>Mira todo en el inbox y entra a cualquier chat cuando quieras.</p></div>
+</div></div></section>
+
+<section id="funciones"><div class="w">
+<h2>Todo lo que necesitas en un solo inbox</h2>
+<div class="fn">
+<div><h3>Inbox estilo WhatsApp Web</h3><p>Todas las conversaciones en una pantalla que tu equipo ya sabe usar.</p></div>
+<div><h3>IA y humano en el mismo chat</h3><p>Enciende o apaga la IA y deriva a una persona en un clic.</p></div>
+<div><h3>Buffer inteligente</h3><p>Espera y agrupa los mensajes sueltos del cliente para responder una sola vez y con contexto.</p></div>
+<div><h3>Notas de voz</h3><p>El agente las transcribe, las entiende y responde.</p></div>
+<div><h3>Agenda con GoHighLevel</h3><p>Agenda citas y guarda cada lead sin que nadie lo capture a mano.</p></div>
+<div><h3>CRM básico y observabilidad</h3><p>Contactos, etapas y el consumo de tokens y llamadas por conversación.</p></div>
+<div><h3>Multi-cliente</h3><p>Da de alta workspaces, cada uno con su número y su agente.</p></div>
+<div><h3>Tu equipo, con permisos</h3><p>Invita asesores y define quién ve y responde qué.</p></div>
+</div></div></section>
+
+<section style="padding-top:0"><div class="w sp">
+<div class="phone"><div id="il"><div class="ibh">Conversaciones</div><div id="ib"></div></div><div id="iv" hidden><div class="ph"><div class="bkw"><button class="bk" id="bk" type="button" aria-label="Volver a conversaciones">←</button><div><b id="in"></b><small id="is">en línea</small></div></div><button class="sw" id="isw" type="button" role="switch" aria-checked="true" aria-label="IA activa en esta conversación"><span></span><i class="sl" id="isl">IA activa</i></button></div><div class="chat" id="ic"></div><div class="cmp" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9.5h.01M15 9.5h.01"/></svg><span class="ti">Escribe un mensaje</span><span class="mic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></span></div></div></div>
+<div>
+<h2>Tú decides quién responde</h2>
+<p class="lead">Mira todas las conversaciones en una lista y cambia entre IA y persona cuando quieras. Prueba: haz clic en una conversación.</p>
+<ul><li><b>Prende o apaga la IA</b> por conversación, sin afectar a las demás.</li><li><b>Recibe un aviso</b> cuando un cliente pide hablar con una persona.</li><li><b>Un solo historial:</b> lo que dijo la IA y lo que dijo tu equipo, en el mismo chat.</li></ul>
+</div></div></section>
+
+<section id="agentes" style="background:var(--sf);border-block:1px solid var(--ln)"><div class="w">
+<h2>Un agente para cada trabajo</h2>
+<div class="tabs" role="tablist" id="tabs"></div>
+<div class="tp" id="tp" role="tabpanel"></div>
+</div></section>
+
+<section id="demo"><div class="w">
+<h2>Pruébalo tú mismo</h2>
+<p class="lead">Elige un mensaje de cliente y mira cómo responde el agente.</p>
+<div class="demo">
+<div class="qs" id="qs"></div>
+<div class="phone" role="group" aria-label="Demo: conversación de WhatsApp con el agente"><div class="ph"><div><b>Tienda Norte</b><small id="ds">en línea</small></div><div class="sw" id="dsw"><span></span><label id="dsl">IA activa</label></div></div><div class="chat" id="dc" aria-live="polite"></div><div class="cmp" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9.5h.01M15 9.5h.01"/></svg><span class="ti">Escribe un mensaje</span><span class="mic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></span></div></div>
+</div></div></section>
+
+<section style="background:var(--sf);border-block:1px solid var(--ln)"><div class="w">
+<h2>Pensado para negocios que viven de WhatsApp</h2>
+<div class="ch"><span>Clínicas y consultorios</span><span>Inmobiliarias</span><span>Constructoras</span><span>E-commerce</span><span>Escuelas y academias</span><span>Restaurantes</span><span>Salones y spas</span><span>Servicios locales</span></div>
+</div></section>
+
+<section id="precios"><div class="w">
+<h2>Precios simples</h2>
+<p class="lead">Precios de ejemplo: ajústalos a tu oferta real.</p>
+<div class="pl">
+<div><h3>Inicio</h3><div class="pc">$49<small> USD/mes</small></div><ul><li>1 número de WhatsApp</li><li>1 agente</li><li>Hasta 1,000 conversaciones</li><li>Inbox y handoff</li></ul><a class="btn" href="#contacto">Empezar</a></div>
+<div class="hot"><h3>Crecimiento</h3><div class="pc">$149<small> USD/mes</small></div><ul><li>3 números</li><li>Los 3 tipos de agente</li><li>Hasta 5,000 conversaciones</li><li>GoHighLevel y notas de voz</li><li>Observabilidad</li></ul><a class="btn p" href="#contacto">Probar gratis</a></div>
+<div><h3>Agencias</h3><div class="pc">A medida</div><ul><li>Clientes y workspaces ilimitados</li><li>Roles y equipo</li><li>Soporte prioritario</li></ul><a class="btn" href="#contacto">Hablar con ventas</a></div>
+</div></div></section>
+
+<section style="background:var(--sf);border-block:1px solid var(--ln)"><div class="w">
+<h2>Lo que dicen los equipos que ya lo usan</h2>
+<div class="tt">
+<blockquote>“Dejamos de perder consultas de noche. Amanecemos con la agenda llena.”<cite>Reemplaza por un testimonio real. Clínica, Culiacán</cite></blockquote>
+<blockquote>“Mi equipo solo entra cuando el cliente pide precio final. Lo demás lo resuelve la IA.”<cite>Reemplaza por un testimonio real. Inmobiliaria</cite></blockquote>
+<blockquote>“Con las notas de voz ya no se nos escapa ningún cliente.”<cite>Reemplaza por un testimonio real. Tienda en línea</cite></blockquote>
+</div></div></section>
+
+<section><div class="w">
+<h2>Tus datos y tus clientes, protegidos</h2>
+<div class="sc">
+<div><h3>Datos aislados por workspace</h3><p>Cada cliente ve solo su información, con autenticación y permisos por rol.</p></div>
+<div><h3>Tú controlas a la IA</h3><p>Puedes apagarla en cualquier chat y revisar lo que respondió.</p></div>
+<div><h3>Hecho para WhatsApp Business</h3><p>Funciona sobre la API oficial y respeta sus políticas de uso.</p></div>
+</div></div></section>
+
+<section id="faq" style="padding-top:0"><div class="w">
+<h2 style="margin-bottom:28px">Preguntas frecuentes</h2>
+<details><summary>¿Necesito la API de WhatsApp Business?</summary><p>Sí. Te guiamos para conectarla desde el panel con un proveedor oficial.</p></details>
+<details><summary>¿Puedo apagar la IA cuando quiera?</summary><p>Sí. Lo haces por conversación con un solo clic y tu equipo toma el chat.</p></details>
+<details><summary>¿Qué pasa si la IA no sabe responder?</summary><p>Puede derivar la conversación a una persona y avisarle a tu equipo.</p></details>
+<details><summary>¿Cuánto tarda la configuración?</summary><p>Conectar el número y lanzar tu primer agente toma minutos. Afinar las instrucciones depende de tu negocio.</p></details>
+<details><summary>¿Funciona con mi CRM y mi agenda?</summary><p>Se integra con GoHighLevel. También puede mandar enlaces de agenda de Cal.com o Calendly.</p></details>
+<details><summary>¿Entiende notas de voz?</summary><p>Sí. Las transcribe y responde sobre lo que dijo el cliente.</p></details>
+</div></section>
+
+<section class="fin" id="contacto"><div class="w fg">
+<div><h2>Que tu próximo cliente reciba respuesta en segundos</h2><p class="lead">Déjanos tus datos y te mostramos una demo con tu propio negocio.</p></div>
+<div class="fm" id="fm">
+<label>Nombre<input id="fn" autocomplete="name" placeholder="Tu nombre"></label>
+<label>WhatsApp<input id="fw" type="tel" autocomplete="tel" placeholder="+52 ..."></label>
+<label>Correo<input id="fe" type="email" autocomplete="email" placeholder="tu@correo.com"></label>
+<label>¿A qué te dedicas?<select id="fi"><option>Clínica o salud</option><option>Inmobiliaria</option><option>E-commerce</option><option>Servicios</option><option>Agencia</option><option>Otro</option></select></label>
+<button class="btn p" id="fb" type="button">Solicitar demo</button>
+<div class="ok" id="fo" role="status"></div>
+</div></div></section>
+</main>
+
+<footer><div class="w ft">
+<span>© 2026 AgenteWA</span>
+<nav aria-label="Pie"><a href="#">Privacidad</a><a href="#">Términos</a><a href="#contacto">Contacto</a><a href="#">Instagram</a><a href="#">LinkedIn</a></nav>
+<button class="cr" id="cb" type="button">Hecho por RogersX</button>
+</div></footer>
+
+<dialog id="dg"><h3>RogersX</h3><p>Desarrollador Web</p><div class="row"><a class="btn p" href="https://github.com/RogersX" target="_blank" rel="noopener">GitHub</a><button class="btn" id="dx" type="button">Cerrar</button></div></dialog>
+<a class="wa" href="#contacto">Escríbenos por WhatsApp</a>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var RM=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
+function pad(n){return("0"+n).slice(-2)}
+function stamp(box){var m=box._min++;return pad(Math.floor(m/60))+":"+pad(m%60)}
+var TK='<svg class="tk" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true"><path d="M1 5.5l3 3L10.5 2M6 8.5l1 1L13.5 2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var WV=[30,60,45,80,50,90,40,70,55,85,35,65,50,75,45,60,30,70,55,40];
+function add(box,t,k,who,o){var d=document.createElement("div");
+ if(k==="sys"){d.className="m sys";d.textContent=t;box.appendChild(d);box.scrollTop=box.scrollHeight;return d}
+ d.className="m "+k;
+ if(who){var e=document.createElement("em");e.textContent=who;d.appendChild(e)}
+ if(o&&o.v){var v=document.createElement("div");v.className="vn";v.setAttribute("role","img");v.setAttribute("aria-label","Nota de voz de "+t);
+  v.innerHTML='<span class="pb" aria-hidden="true"><svg viewBox="0 0 10 12" width="10" height="12"><path d="M1 1l8 5-8 5z" fill="currentColor"/></svg></span><span class="wv" aria-hidden="true">'+WV.map(function(h){return'<b style="height:'+h+'%"></b>'}).join("")+'</span><span class="du">'+t+'</span>';
+  d.appendChild(v)}
+ else d.appendChild(document.createTextNode(t));
+ var mt=document.createElement("span");mt.className="mt";mt.innerHTML=stamp(box)+(k==="c"?"":TK);d.appendChild(mt);
+ box.appendChild(d);box.scrollTop=box.scrollHeight;return d}
+function typing(k,who){var d=document.createElement("div");d.className="m typ "+k;d.setAttribute("aria-hidden","true");
+ var e=document.createElement("em");e.textContent=(who||"IA")+" escribiendo";d.appendChild(e);
+ d.insertAdjacentHTML("beforeend","<i></i><i></i><i></i>");return d}
+var UI={hc:{sw:"sw",sl:"swl",st:"hs"},dc:{sw:"dsw",sl:"dsl",st:"ds"}};
+function ui(box,k,v){var u=UI[box.id];if(!u)return;
+ if(k==="st"){$(u.st).textContent=v;return}
+ $(u.sw).classList.toggle("off",v==="off");$(u.sl).textContent=v==="off"?"Humano al mando":"IA activa"}
+function wait(box,ms,f){box._t=setTimeout(f,RM?0:ms)}
+function bars(box,el,f){var b=el.querySelectorAll(".wv b"),i=0;clearInterval(box._iv);
+ if(RM){for(;i<b.length;i++)b[i].className="on";f();return}
+ box._iv=setInterval(function(){if(i<b.length)b[i++].className="on";else{clearInterval(box._iv);f()}},70)}
+function play(box,list,done){var i=0;clearTimeout(box._t);clearInterval(box._iv);box.innerHTML="";box._min=box.id==="hc"?642:665;
+ ui(box,"sw","on");ui(box,"st","en línea");
+ var day=document.createElement("div");day.className="m sys day";day.textContent="Hoy";box.appendChild(day);
+ function n(){if(i>=list.length){ui(box,"st","en línea");done&&done();return}var x=list[i++];
+  if(x.sw){ui(box,"sw",x.sw);wait(box,500,n);return}
+  var k=x[1],len=x[0].length,o=x[3];
+  if(k==="sys"){
+   if(o&&o.tr){var d=add(box,"Transcribiendo…","sys");wait(box,900,function(){d.textContent=x[0];wait(box,600,n)})}
+   else{add(box,x[0],"sys");wait(box,600,n)}
+   return}
+  if(k==="c"){ui(box,"st","escribiendo…");
+   wait(box,o&&o.v?300:Math.min(1300,450+len*16),function(){ui(box,"st","en línea");var d=add(box,x[0],k,x[2],o);
+    if(o&&o.v)bars(box,d,function(){wait(box,400,n)});else wait(box,600,n)});
+   return}
+  if(RM){add(box,x[0],k,x[2],o);wait(box,0,n);return}
+  var t=typing(k,x[2]);box.appendChild(t);box.scrollTop=box.scrollHeight;
+  wait(box,Math.min(1800,700+len*14),function(){t.remove();add(box,x[0],k,x[2],o);wait(box,700,n)})}
+ n()}
+function onView(el,f){if(!("IntersectionObserver" in window)){f();return}
+ var o=new IntersectionObserver(function(es){if(es[0].isIntersecting){o.disconnect();f()}},{threshold:.35});o.observe(el)}
+var hero=[["Hola, ¿tienen cita para limpieza dental?","c"],["¡Hola! Sí. Tengo mañana a las 10:00 o a las 16:30. ¿Cuál te acomoda?","ia","IA"],["Mejor a las 16:30","c"],["Listo, agendada para mañana 16:30. Te llegará un recordatorio.","ia","IA"],["0:08","c",null,{v:1}],["Transcrito: “¿Aceptan pagos a meses?”","sys",null,{tr:1}],["Eso lo confirma una asesora. Te paso con ella ahora.","ia","IA"],["IA pausada. Atiende una persona","sys"],{sw:"off"},["Hola, soy Mariana. Sí, manejamos pagos a 3 y 6 meses sin intereses.","hu","Mariana, equipo"]];
+function runHero(){$("rp").hidden=true;play($("hc"),hero,function(){$("rp").hidden=false})}
+$("rp").onclick=runHero;
+onView($("hc"),runHero);
+var T=[{n:"Setter",d:"Califica a tus leads y los pasa listos a ventas.",u:["Hace las preguntas clave","Guarda los datos en el CRM","Avisa a tu equipo cuando el lead está caliente"]},
+{n:"Agendamiento",d:"Llena tu agenda sin ir y venir con horarios.",u:["Ofrece horarios disponibles","Agenda y confirma en GoHighLevel","Manda recordatorios"]},
+{n:"Servicio al cliente",d:"Resuelve dudas frecuentes y escala lo complejo.",u:["Responde con la información de tu negocio","Entiende notas de voz","Deriva a una persona cuando hace falta"]}];
+var tb=$("tabs"),tp=$("tp");
+function tab(i){[].forEach.call(tb.children,function(b,j){b.setAttribute("aria-selected",j===i)});
+ var t=T[i];tp.innerHTML="<div><h3>"+t.n+"</h3><p>"+t.d+"</p></div><ul>"+t.u.map(function(x){return"<li>"+x+"</li>"}).join("")+"</ul>"}
+T.forEach(function(t,i){var b=document.createElement("button");b.type="button";b.setAttribute("role","tab");b.textContent=t.n;b.onclick=function(){tab(i)};tb.appendChild(b)});tab(0);
+var D=[{q:"Quiero agendar una cita para mañana",r:[["Quiero agendar una cita para mañana","c"],["Con gusto. Mañana tengo 10:00, 12:30 y 16:30. ¿Cuál prefieres?","ia","IA"],["12:30","c"],["Agendado para mañana a las 12:30. Ya te guardé en el calendario.","ia","IA"],["Lead guardado en GoHighLevel","sys"]]},
+{q:"Mandé una nota de voz con mi duda",r:[["0:14","c",null,{v:1}],["Transcrito: “¿Hacen entregas los sábados y cuánto cuesta el envío?”","sys",null,{tr:1}],["Sí, entregamos los sábados de 9 a 14 h. El envío local cuesta $60.","ia","IA"]]},
+{q:"Quiero hablar con una persona",r:[["Quiero hablar con una persona","c"],["Claro. Aviso a mi equipo ahora mismo.","ia","IA"],["IA pausada. Conversación asignada a un asesor","sys"],{sw:"off"},["Hola, soy Sofía. ¿En qué te ayudo?","hu","Sofía, equipo"]]}];
+var qs=$("qs");
+function demo(i){[].forEach.call(qs.children,function(b,j){b.setAttribute("aria-pressed",j===i)});play($("dc"),D[i].r)}
+D.forEach(function(x,i){var b=document.createElement("button");b.type="button";b.textContent=x.q;b.onclick=function(){demo(i)};qs.appendChild(b)});onView($("dc"),function(){demo(0)});
+$("fb").onclick=function(){var n=$("fn").value.trim(),w=$("fw").value.trim(),e=$("fe").value.trim(),o=$("fo");
+ if(!n||!(w||e)){o.style.color="";o.textContent="Escribe tu nombre y un WhatsApp o correo para contactarte.";return}
+ o.style.color="";o.textContent="Gracias, "+n+". Te contactamos pronto."};
+var S=[{n:"Ana Torres",t:"10:42",u:0,s:"ia",m:[["¿Tienen horario el sábado?","c"],["Sí, los sábados atendemos de 9:00 a 14:00. ¿Te agendo?","ia","IA"]]},
+{n:"Constructora Mora",t:"10:15",u:0,s:"hu",m:[["Necesito cotizar una bodega de 400 m²","c"],["Con gusto. Te paso con un asesor para la cotización.","ia","IA"],["IA pausada. Atiende una persona","sys"],["Hola, soy Rodrigo. ¿Me compartes la ubicación del terreno?","hu","Rodrigo, equipo"]]},
+{n:"Luis P.",t:"09:58",u:0,s:"ia",m:[["0:22","c",null,{v:1}],["Transcrito: “¿Cuánto tarda una limpieza?”","sys"],["Unos 45 minutos. ¿Quieres que te agende?","ia","IA"]]},
+{n:"Carla R.",t:"09:40",u:1,s:"pe",m:[["Quiero hablar con alguien","c"],["Claro, aviso a mi equipo ahora mismo.","ia","IA"],["Pendiente de que una persona tome el chat","sys"]]}],
+L={ia:["IA",""],hu:["Humano","h"],pe:["Pendiente","p"]},cur=0;
+function mins(t){var a=t.split(":");return a[0]*60+ +a[1]}
+function lastTxt(c){for(var i=c.m.length-1;i>=0;i--){var m=c.m[i];if(m[1]!=="sys")return m[3]&&m[3].v?"Nota de voz "+m[0]:m[0]}return""}
+function rl(){var ib=$("ib");ib.innerHTML="";S.forEach(function(c,i){var b=document.createElement("button");b.type="button";b.className="rw";
+ b.setAttribute("aria-label",c.n+". "+(c.u?c.u+" sin leer. ":"")+"Responde: "+L[c.s][0]+". Abrir conversación");
+ b.innerHTML='<span class="av" aria-hidden="true">'+c.n.charAt(0)+'</span><span class="rt"><strong>'+c.n+'</strong><small>'+lastTxt(c)+'</small></span><span class="rm"><time>'+c.t+'</time><span class="rb">'+(c.u?'<span class="un" aria-hidden="true">'+c.u+'</span>':'')+'<span class="bd '+L[c.s][1]+'">'+L[c.s][0]+'</span></span></span>';
+ b.onclick=function(){oc(i)};ib.appendChild(b)})}
+function sc(){var s=S[cur].s,w=$("isw");w.classList.toggle("off",s!=="ia");w.setAttribute("aria-checked",s==="ia");
+ $("isl").textContent=s==="ia"?"IA activa":s==="hu"?"Humano al mando":"Sin atender"}
+function rc(){var c=S[cur],ic=$("ic"),n=0;ic.innerHTML="";c.m.forEach(function(m){if(m[1]!=="sys")n++});ic._min=mins(c.t)-n+1;
+ c.m.forEach(function(m){add(ic,m[0],m[1],m[2],m[3])});sc()}
+function oc(i){cur=i;S[i].u=0;$("in").textContent=S[i].n;rc();$("il").hidden=true;$("iv").hidden=false;$("bk").focus()}
+$("bk").onclick=function(){$("iv").hidden=true;$("il").hidden=false;rl();$("ib").children[cur].focus()};
+$("isw").onclick=function(){var c=S[cur],t;
+ if(c.s==="ia"){c.s="hu";t="IA pausada. Tomaste el chat"}else if(c.s==="hu"){c.s="ia";t="IA reactivada"}else{c.s="hu";t="Tomaste el chat. IA pausada"}
+ c.m.push([t,"sys"]);add($("ic"),t,"sys");sc()};
+rl();
+var mb=$("mb"),mn=$("mn");
+function cm(){mn.classList.remove("open");mb.setAttribute("aria-expanded","false");mb.setAttribute("aria-label","Abrir menú")}
+mb.onclick=function(){var o=mn.classList.toggle("open");mb.setAttribute("aria-expanded",o);mb.setAttribute("aria-label",o?"Cerrar menú":"Abrir menú")};
+[].forEach.call(mn.querySelectorAll("a"),function(a){a.addEventListener("click",cm)});
+document.addEventListener("keydown",function(e){if(e.key==="Escape")cm()});
+document.addEventListener("click",function(e){if(!e.target.closest("header"))cm()});
+if("IntersectionObserver" in window){var ls={};[].forEach.call(mn.querySelectorAll("a[href^='#']"),function(a){ls[a.getAttribute("href").slice(1)]=a});
+ var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){for(var k in ls)ls[k].classList.remove("on");var a=ls[e.target.id];a&&a.classList.add("on")}})},{rootMargin:"-45% 0px -50% 0px"});
+ Object.keys(ls).forEach(function(k){var t=$(k);t&&io.observe(t)})}
+$("cb").onclick=function(){$("dg").showModal()};$("dx").onclick=function(){$("dg").close()};
+</script>
+</body>
+</html>

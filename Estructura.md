@@ -1,6 +1,6 @@
 # Estructura del proyecto — Agente WhatsApp
 
-> Documento generado el 2026-09-29 y verificado/actualizado el mismo día.
+> Documento generado el 2026-09-29 y actualizado/verificado el 2026-10-02.
 > Describe la estructura del codebase tal como existe en esa fecha; si el
 > proyecto cambia, este archivo puede quedar desactualizado.
 
@@ -28,8 +28,10 @@ y cumplimiento de la ventana de 24h de Meta. Cada **workspace** es un cliente.
 
 Reglas de dependencia observadas:
 
-- El client de **service-role** de Supabase solo se crea dentro de `services/`
-  (nunca en routes ni componentes).
+- El client de **service-role** de Supabase se crea dentro de `services/` como
+  regla general. Excepciones actuales: `api/invite-request/route.ts` (intake
+  público sin sesión) y `app/(main)/settings/page.tsx` (reads multi-tabla
+  aplicando a mano la regla de rol admin/manager).
 - **`dispatch.ts` es el único punto de salida** de mensajes a WhatsApp
   (SEC-04): inserta el row como `queued` antes de llamar al proveedor, para
   que el trigger de ventana 24h rechace antes de enviar.
@@ -51,19 +53,24 @@ Reglas de dependencia observadas:
 ├── .gitignore
 ├── .mcp.json                    # Servidores MCP (16): supabase, playwright, next-devtools,
 │                                #   shadcn, chrome-devtools, github, stripe, sentry, resend,
-│                                #   perplexity, brave-search, firecrawl, n8n, insforge
+│                                #   perplexity, brave-search, firecrawl-mcp, n8n-mcp, insforge
 │                                #   (deshabilitado), sequential-thinking, svgmaker
 ├── AGENTS.md                    # Regla always-on: usar Context7 MCP para docs de librerías
 ├── COMPONENT_RULES.md           # Design system: Glass + Electric Lime, tokens, motion, 4 estados
 ├── Documentos-Planeacion/       # Documentos de planeación del producto
-│   └── documentos-planeacion/   #   BLUEPRINT, SECURITY-AUDIT, USER-STORIES (agente-whatsapp)
+│   └── documentos-planeacion/   #   BRIEF, BLUEPRINT, ARQUITECTURA-OBJETIVO,
+│                                #   SECURITY-AUDIT, USER-STORIES, DISENO-LOGIN
+│                                #   (agente-whatsapp), INFORME-{SETTER,
+│                                #   AGENDAMIENTO, SERVICIO-CLIENTE}
 ├── Estructura.md                # Este documento — mapa anotado del codebase
 ├── INSTALAR.md                  # Guía de instalación one-click para agentes (~700 líneas)
 ├── LICENSE                      # MIT
 ├── README.md
 ├── components.json              # Config de shadcn/ui
 ├── eslint.config.mjs
-├── middleware.ts                # Sesión Supabase SSR; protege todo menos las rutas de auth
+├── landing-agente-whatsapp.html # HTML de referencia: fuente del que se portó la landing a React
+├── middleware.ts                # Sesión Supabase SSR; protege todo menos auth + landing "/"
+│                                #   (usuarios con sesión son redirigidos a /inbox)
 ├── next-env.d.ts
 ├── next.config.ts               # CSP/HSTS/headers de seguridad, rewrite de favicon
 ├── node-test.d.ts               # Tipos para node --test
@@ -87,7 +94,7 @@ Reglas de dependencia observadas:
 │   ├── config.toml              # project_id para supabase link / db push
 │   ├── cron/
 │   │   └── schedule-buffer-flush.sql   # pg_cron + pg_net → GET /api/cron/buffer-flush cada minuto
-│   ├── migrations/              # 41 migraciones (ver sección "Base de datos")
+│   ├── migrations/              # 45 migraciones (ver sección "Base de datos")
 │   └── tests/
 │       └── security.test.sql    # Tests de RLS con pgTAP (supabase test db)
 │
@@ -95,19 +102,23 @@ Reglas de dependencia observadas:
     ├── middleware (raíz: ../middleware.ts)
     ├── app/                     # Next.js App Router
     │   ├── layout.tsx           # Root layout (fuentes Geist/Space Grotesk, theme provider)
-    │   ├── page.tsx             # Landing / redirect
-    │   ├── (auth)/              # Rutas públicas de autenticación
-    │   │   ├── layout.tsx
+    │   ├── page.tsx             # Landing de marketing (pública; usuarios con
+    │   │                        #   sesión son redirigidos a /inbox por middleware)
+    │   ├── (auth)/              # Rutas públicas de autenticación (split screen)
+    │   │   ├── layout.tsx       #   Backdrop ambient + auth-chat-demo animado
     │   │   ├── login/ · signup/ · forgot-password/ · reset-password/
-    │   ├── (main)/              # App autenticada (layout con sidebar/workspace switcher)
+    │   │   #   Signup solo abierto mientras no exista super admin (signup-gate)
+    │   ├── (main)/              # App autenticada (header + workspace switcher +
+    │   │                        #   bottom nav móvil — no hay sidebar)
     │   │   ├── layout.tsx
     │   │   ├── inbox/           # Inbox + inbox/[id] (conversación)
     │   │   ├── dashboard/       # Métricas
     │   │   ├── onboarding/      # Wizard inicial del workspace
     │   │   └── settings/        # Settings (tabs: integraciones, KB, templates, tools…)
     │   ├── (agency)/
-    │   │   ├── layout.tsx
-    │   │   └── workspaces/      # Panel del super admin / agencia
+    │   │   ├── layout.tsx       #   Header con AppButton (entrar a la app) + sub-nav
+    │   │   └── workspaces/      #   Panel del super admin: tabla de clientes +
+    │   │                        #   solicitudes de acceso pendientes
     │   ├── ui/                  # Showcase del design system (solo dev) + server actions de feedback
     │   └── api/                 # Route handlers
     │       ├── webhooks/
@@ -119,11 +130,18 @@ Reglas de dependencia observadas:
     │       ├── conversations/[id]/
     │       │   ├── messages/ · notes/ · events/    # Mensajes, notas internas, log de eventos
     │       │   ├── handoff/ · take/ · toggle-ai/   # Controles del operador humano
+    │       │   ├── actions/                       # Quick actions: close/reopen, archive,
+    │       │   │                                  #   flag, assign, set_tags
+    │       │   ├── media/                         # Media saliente (sign + dispatch; el
+    │       │   │                                  #   browser sube el archivo a Storage)
     │       ├── contacts/[id]/             # CRM básico
     │       ├── inbox/media-url/           # URLs firmadas para media del bucket whatsapp-media
     │       ├── integrations/{ycloud,kapso}/test/  # "Probar conexión" por proveedor
     │       ├── tools/[workspaceId]/       # Catálogo de tools del workspace
+    │       ├── invite-request/            # POST público "request access" (honeypot,
+    │       │                              #   respuesta neutra, write con service-role)
     │       ├── agency/workspaces/         # Creación/gestión de workspaces (agencia)
+    │       ├── agency/invite-requests/    # GET/PATCH solicitudes de acceso (super admin)
     │       └── workspace/[id]/
     │           ├── agents/ (+ [agentId]/test-chat)   # Agentes IA y playground
     │           ├── automations/ · business-info/ · jev/ (+ preview) · kb/
@@ -133,11 +151,19 @@ Reglas de dependencia observadas:
     │           └── templates/ (+ generate, library, submit, sync) # Templates de Meta
     │
     ├── features/
+    │   ├── README.md            # Convención feature-first
     │   ├── .template/           # Scaffolding de feature (README + components/hooks/services/store/types)
-    │   ├── auth/                # Formularios, server actions, signup-gate
-    │   ├── agency/              # workspaces-table, create-workspace-sheet, members-sheet;
-    │   │                    #   agency-actions (server: crear workspace, miembros, resets)
-    │   ├── workspace/           # Workspace switcher, active-workspace
+    │   ├── landing/             # Landing de marketing: sections (hero, demo, agents, showcase,
+    │   │                    #   integrations, contact, whatsapp-float), chat-frame +
+    │   │                    #   data/scripts (guiones del chat demo), hooks
+    │   │                    #   use-chat-playback/use-on-view, landing.css, fonts
+    │   ├── auth/                # Formularios, auth-chat-demo, server actions, signup-gate
+    │   ├── agency/              # workspaces-table, create-workspace-sheet, members-sheet,
+    │   │                    #   invite-requests, app-button; agency-actions +
+    │   │                    #   invite-requests (server: crear workspace, miembros,
+    │   │                    #   resets, solicitudes de acceso)
+    │   ├── workspace/           # Workspace switcher, active-workspace, actions
+    │   │                    #   (switchWorkspace/enterApp — cookie active_workspace_id)
     │   ├── onboarding/          # Wizard + prompts semilla por caso de uso
     │   ├── dashboard/           # Métricas del workspace
     │   ├── settings/            # Tabs de settings: settings-shell, integrations (provider picker,
@@ -146,13 +172,16 @@ Reglas de dependencia observadas:
     │   │                    #   (automations-tab + rule-form), n8n-tools (+ form), team-tab,
     │   │                    #   business-info-form, tools-catalog + tool-config-panel,
     │   │                    #   cost-calculator; services: automation-actions; lib: template-form
-    │   ├── ui-kit/              # Showcase components, motion system (durations/easing), feedback panel
+    │   ├── ui-kit/              # Showcase components, motion system (durations/easing),
+    │   │                        #   feedback panel, viewport-toggle
     │   │
     │   ├── inbox/               # ★ Motor del producto
-    │   │   ├── components/      # inbox-layout, chat-thread, chat-message, message-attachment,
-    │   │   │                    #   conversation-item, crm-panel, observability-panel,
-    │   │   │                    #   template-picker, window-banner, ai-toggle-button,
-    │   │   │                    #   state-badge, status-icon, role-gate
+    │   │   ├── components/      # inbox-layout, chat-thread (con media composer),
+    │   │   │                    #   chat-message, message-attachment, conversation-item,
+    │   │   │                    #   conversation-actions-menu (quick actions),
+    │   │   │                    #   conversation-tags-dialog, crm-panel,
+    │   │   │                    #   observability-panel, template-picker, window-banner,
+    │   │   │                    #   ai-toggle-button, state-badge, status-icon, role-gate
     │   │   ├── hooks/           # use-realtime-conversations/messages (Supabase Realtime →
     │   │   │                    #   router.refresh debounced), use-ai-toggle, use-handoff-alerts,
     │   │   │                    #   use-role, handoff-alert
@@ -199,6 +228,8 @@ Reglas de dependencia observadas:
     │   │   │   # Handoff + equipo
     │   │   │   ├── handoff-notifier.ts      # ACK al cliente por WhatsApp + dedupe por ventana
     │   │   │   ├── team-notifier.ts         # Email al equipo vía Resend (opt-in, 10/hora)
+    │   │   │   ├── conversation-actions.ts  # Quick actions: close/reopen, archive, flag,
+    │   │   │   │                            #   assign, set_tags (autorización por rol)
     │   │   │   # CRM / agendamiento
     │   │   │   ├── highlevel-client.ts      # Sync contacto ↔ HL, oportunidades
     │   │   │   ├── scheduling-timezone.ts   # Zona horaria del workspace para citas
@@ -331,7 +362,7 @@ migraciones posteriores):
 | `workspaces` | Tenants (un workspace = un cliente) |
 | `users` / `memberships` / `permissions` | Usuarios, roles por workspace (admin/manager/agent/viewer), super admin |
 | `contacts` | Contactos CRM por workspace (índice único con HighLevel) |
-| `conversations` | Una por contacto+canal; `state` es la state machine |
+| `conversations` | Una por contacto+canal; `state` es la state machine; flags de operador: `archived`, `priority`, `tags[]`, `assigned_to` |
 | `message_batches` | Buffer de mensajes entrantes (silence window, claim, meta/checkpoints) |
 | `messages` | Mensajes; `wamid` único por workspace (dedup); `meta` con transcript |
 | `message_errors` | Errores de envío estructurados por mensaje |
@@ -348,6 +379,7 @@ migraciones posteriores):
 | `automation_rules` | Reglas trigger → acción (first_message, keyword_match, …) |
 | `events` | Log de observabilidad/auditoría (tool_call, llm_usage, cost_cut, …) |
 | `member_password_resets` | Resets de contraseña gestionados por admin |
+| `invite_requests` | Solicitudes de acceso del intake público (RLS sin políticas de lectura) |
 
 Migraciones destacadas: RLS por workspace y hardening de funciones
 (`search_path`, `SECURITY DEFINER`), guard de ventana 24h
@@ -355,7 +387,8 @@ Migraciones destacadas: RLS por workspace y hardening de funciones
 (`upsert_batch_and_link_message`, `claim_next_batch`), pgvector
 (`match_kb`), pg_cron/pg_net, reservas de turnos/llamadas LLM
 (`reserve_llm_turn`, `reserve_workspace_llm_call`), super admin, índices
-únicos de reconciliación con HighLevel.
+únicos de reconciliación con HighLevel, flags de operador en `conversations`
+(`archived`, `priority`, `tags`) e `invite_requests`.
 
 ## Puntos de entrada y secretos
 
@@ -366,7 +399,8 @@ Migraciones destacadas: RLS por workspace y hardening de funciones
 | `/api/webhooks/highlevel?wsid=&token=` | Token por workspace, comparación constant-time |
 | `/api/cron/buffer-flush` | `Authorization: Bearer $CRON_SECRET` |
 | `/api/internal/buffer/process` | `BUFFER_PROCESS_SECRET` |
-| UI (todo lo demás) | Sesión Supabase vía `middleware.ts` + RLS |
+| `/api/invite-request` | Pública — honeypot + respuesta neutra (write con service-role) |
+| UI de la app | Sesión Supabase vía `middleware.ts` + RLS (`/` landing, páginas de auth e `invite-request` son públicos) |
 
 Env vars: Supabase URL/anon/service_role, `OPENROUTER_API_KEY` +
 `OPENROUTER_DEFAULT_MODEL`, `ENCRYPTION_KEY(+_VERSION)`, `CRON_SECRET`,
