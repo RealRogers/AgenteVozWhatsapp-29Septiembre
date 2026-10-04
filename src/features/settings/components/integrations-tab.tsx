@@ -881,6 +881,8 @@ function HighLevelSection({
   const isConnected = Boolean(
     initial?.credentials?.highlevel_pit && initial?.config?.location_id,
   );
+  const [enabled, setEnabled] = useState(initial?.enabled ?? true);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [pipelines, setPipelines] = useState<HLPipelineOption[]>([]);
   // Seed the loading flag from isConnected so the mount fetch doesn't flash the
   // empty state before the effect runs.
@@ -913,12 +915,14 @@ function HighLevelSection({
     }
   }, [workspaceId]);
 
-  // Auto-load pipelines on mount when HighLevel is already connected.
+  // Auto-load pipelines on mount when HighLevel is already connected and
+  // enabled — a disabled integration fails getHLConfig the same way a missing
+  // one does, so asking would only surface the API error.
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected || !enabled) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: loadPipelines resets loading/error before each (re)fetch
     loadPipelines();
-  }, [isConnected, loadPipelines]);
+  }, [isConnected, enabled, loadPipelines]);
 
   const selectedPipeline = pipelines.find((p) => p.id === pipelineId);
   const stages = selectedPipeline?.stages ?? [];
@@ -932,6 +936,16 @@ function HighLevelSection({
     }
   }
 
+  function handleCopyWebhook() {
+    const url = initial?.highlevel_webhook_url;
+    if (!url) return;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedWebhook(true);
+      toast.success("URL del webhook copiada");
+      setTimeout(() => setCopiedWebhook(false), 2000);
+    });
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -940,7 +954,7 @@ function HighLevelSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: "highlevel",
-          enabled: true,
+          enabled,
           credentials: { highlevel_pit: pit },
           config: {
             location_id: locationId,
@@ -999,6 +1013,23 @@ function HighLevelSection({
       description="Conecta tu CRM con un Private Integration Token (PIT). Requerido para sincronizar contactos y agendar en el calendario."
     >
       <div className="grid gap-4">
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/20 p-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="hl-enabled">Integración activa</Label>
+            <p className="text-xs text-muted-foreground">
+              Al desactivarla se detienen la sincronización de contactos, el
+              agendamiento y el webhook de entrada.
+            </p>
+          </div>
+          <Switch
+            id="hl-enabled"
+            checked={enabled}
+            onCheckedChange={setEnabled}
+            disabled={!canEdit}
+            aria-describedby={!canEdit ? "highlevel-admin-only" : undefined}
+          />
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="hl-pit">Private Integration Token (PIT)</Label>
           <Input
@@ -1040,6 +1071,38 @@ function HighLevelSection({
             agente reserve citas.
           </p>
         </div>
+
+        {initial?.highlevel_webhook_url ? (
+          <div className="space-y-2">
+            <Label>Webhook URL (sincronización desde HighLevel)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={initial.highlevel_webhook_url}
+                className="font-mono text-xs text-muted-foreground"
+                aria-label="Webhook URL de HighLevel (solo lectura)"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyWebhook}
+                aria-label="Copiar URL del webhook de HighLevel"
+              >
+                {copiedWebhook ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-500" aria-hidden />
+                ) : (
+                  <Copy className="h-4 w-4" aria-hidden />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Pégala en un workflow de HighLevel (trigger: Contact Create o
+              Contact Update → acción webhook) para que los contactos se
+              importen a este workspace.
+            </p>
+          </div>
+        ) : null}
 
         <Separator />
 
@@ -1130,7 +1193,7 @@ function HighLevelSection({
             variant="outline"
             size="sm"
             onClick={handleTest}
-            disabled={testing}
+            disabled={testing || !enabled}
             aria-busy={testing}
           >
             {testing && (
