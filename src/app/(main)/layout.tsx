@@ -8,6 +8,7 @@ import {
 import { WorkspaceSwitcher } from "@/features/workspace/components/workspace-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
   Building2,
@@ -89,23 +90,9 @@ export default async function MainLayout({
           )}
         </div>
 
-        {/* Right: agency link (super admin only) + dashboard + settings + logout */}
+        {/* Right: workspace nav (mirrors mobile bottom nav order), agency link
+            (super admin only), then utilities */}
         <div className="flex items-center gap-1 shrink-0">
-          <ThemeToggle />
-
-          {isSuperAdmin && (
-            <Link href="/workspaces">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Building2 className="h-4 w-4" aria-hidden="true" />
-                <span className="sr-only sm:not-sr-only sm:ml-2">Agency</span>
-              </Button>
-            </Link>
-          )}
-
           <Link href="/inbox">
             <Button
               variant="ghost"
@@ -138,6 +125,27 @@ export default async function MainLayout({
               <span className="sr-only sm:not-sr-only sm:ml-2">Settings</span>
             </Button>
           </Link>
+
+          {isSuperAdmin && (
+            <Link href="/workspaces">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Building2 className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only sm:ml-2">Agency</span>
+              </Button>
+            </Link>
+          )}
+
+          <Separator
+            orientation="vertical"
+            className="mx-1 h-5 bg-border/60"
+            aria-hidden="true"
+          />
+
+          <ThemeToggle />
 
           <form action={logout}>
             <Button
