@@ -59,9 +59,12 @@ export default async function MainLayout({
       >
         {/* Left: brand + workspace name */}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-display text-base font-semibold text-primary tracking-tight shrink-0">
+          <Link
+            href="/"
+            className="font-display text-base font-semibold text-primary tracking-tight shrink-0"
+          >
             Agente WA
-          </span>
+          </Link>
           {workspaceName && (
             <>
               <span

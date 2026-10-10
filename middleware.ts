@@ -56,12 +56,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Authenticated users don't belong on the landing or entry auth pages — but
-  // /reset-password is reached WITH a recovery session, so it stays accessible.
+  // Authenticated users don't belong on the entry auth pages — they bounce
+  // back to the inbox (that's also the way out of the landing, which stays
+  // reachable via the brand link). /reset-password is reached WITH a recovery
+  // session, so it stays accessible.
   if (
     user &&
-    (pathname === "/" ||
-      pathname === "/login" ||
+    (pathname === "/login" ||
       pathname === "/signup" ||
       pathname === "/forgot-password")
   ) {
