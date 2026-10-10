@@ -33,7 +33,7 @@ export function AgentsSection() {
           ))}
         </div>
         <div
-          className="mt-[22px] grid gap-7 rounded border border-[var(--lx-ln)] bg-[var(--lx-sf)] p-7 min-[761px]:grid-cols-2"
+          className="mt-[22px] grid grid-cols-1 gap-7 rounded border border-[var(--lx-ln)] bg-[var(--lx-sf)] p-7 min-[761px]:grid-cols-2"
           role="tabpanel"
         >
           <div>

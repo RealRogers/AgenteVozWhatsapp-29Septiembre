@@ -33,7 +33,7 @@ export function ProblemSection() {
 export function StatsStrip() {
   return (
     <div className="bg-[var(--lx-sf2)] py-[60px]">
-      <div className="mx-auto grid max-w-[1120px] gap-8 px-[22px] min-[761px]:grid-cols-3">
+      <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-8 px-[22px] min-[761px]:grid-cols-3">
         {stats.map((s) => (
           <div key={s.value}>
             <b className="lx-stat">{s.value}</b>
@@ -53,7 +53,7 @@ export function HowItWorksSection() {
     >
       <div className="mx-auto max-w-[1120px] px-[22px]">
         <h2>Listo en tres pasos</h2>
-        <div className="lx-steps mt-10 grid gap-5 min-[821px]:grid-cols-3">
+        <div className="lx-steps mt-10 grid grid-cols-1 gap-5 min-[821px]:grid-cols-3">
           {steps.map((s) => (
             <div
               key={s.title}
@@ -74,7 +74,7 @@ export function FeaturesSection() {
     <section id="funciones" className="py-[84px]">
       <div className="mx-auto max-w-[1120px] px-[22px]">
         <h2>Todo lo que necesitas en un solo inbox</h2>
-        <div className="mt-9 grid gap-x-14 min-[761px]:grid-cols-2">
+        <div className="mt-9 grid grid-cols-1 gap-x-14 min-[761px]:grid-cols-2">
           {features.map((f) => (
             <div
               key={f.title}
@@ -118,7 +118,7 @@ export function PricingSection() {
         <p className="mt-4 max-w-[56ch] text-[var(--lx-mu)]">
           Precios de ejemplo: ajústalos a tu oferta real.
         </p>
-        <div className="mt-10 grid items-stretch gap-5 min-[901px]:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 items-stretch gap-5 min-[901px]:grid-cols-3">
           {plans.map((p) => (
             <div
               key={p.name}
@@ -161,7 +161,7 @@ export function TestimonialsSection() {
     <section className="border-y border-[var(--lx-ln)] bg-[var(--lx-sf)] py-[84px]">
       <div className="mx-auto max-w-[1120px] px-[22px]">
         <h2>Lo que dicen los equipos que ya lo usan</h2>
-        <div className="mt-9 grid gap-7 min-[821px]:grid-cols-3">
+        <div className="mt-9 grid grid-cols-1 gap-7 min-[821px]:grid-cols-3">
           {testimonials.map((t) => (
             <blockquote
               key={t.quote}
@@ -184,7 +184,7 @@ export function SecuritySection() {
     <section className="py-[84px]">
       <div className="mx-auto max-w-[1120px] px-[22px]">
         <h2>Tus datos y tus clientes, protegidos</h2>
-        <div className="mt-9 grid gap-7 min-[821px]:grid-cols-3">
+        <div className="mt-9 grid grid-cols-1 gap-7 min-[821px]:grid-cols-3">
           {securityPoints.map((s) => (
             <div key={s.title}>
               <h3>{s.title}</h3>

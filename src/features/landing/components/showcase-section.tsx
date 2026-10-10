@@ -107,8 +107,8 @@ export function ShowcaseSection() {
 
   return (
     <section className="pb-[84px]">
-      <div className="mx-auto grid max-w-[1120px] items-center gap-14 px-[22px] min-[861px]:grid-cols-[0.95fr_1.05fr]">
-        <div className="max-[860px]:order-2">
+      <div className="mx-auto grid max-w-[1120px] grid-cols-1 items-center gap-14 px-[22px] min-[861px]:grid-cols-[0.95fr_1.05fr]">
+        <div className="min-w-0 max-[860px]:order-2">
           {openConvoData === null ? (
             <div className="lx-phone min-h-[430px]">
               <div className="lx-ibh">Conversaciones</div>

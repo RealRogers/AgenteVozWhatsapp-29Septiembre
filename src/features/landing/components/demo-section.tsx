@@ -36,7 +36,7 @@ export function DemoSection() {
         <p className="mt-4 max-w-[56ch] text-[var(--lx-mu)]">
           Elige un mensaje de cliente y mira cómo responde el agente.
         </p>
-        <div className="mt-9 grid items-start gap-9 min-[821px]:grid-cols-[0.8fr_1.2fr]">
+        <div className="mt-9 grid grid-cols-1 items-start gap-9 min-[821px]:grid-cols-[0.8fr_1.2fr]">
           <div className="flex flex-col gap-2.5">
             {demoPresets.map((p, i) => (
               <button

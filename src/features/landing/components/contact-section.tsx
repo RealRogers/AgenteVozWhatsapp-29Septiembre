@@ -25,7 +25,7 @@ export function ContactSection() {
 
   return (
     <section id="contacto" className="lx-final">
-      <div className="mx-auto grid max-w-[1120px] items-center gap-12 px-[22px] py-[84px] min-[821px]:grid-cols-2">
+      <div className="mx-auto grid max-w-[1120px] grid-cols-1 items-center gap-12 px-[22px] py-[84px] min-[821px]:grid-cols-2">
         <div>
           <h2>Que tu próximo cliente reciba respuesta en segundos</h2>
           <p className="lx-lead mt-4 max-w-[56ch] text-[1.1rem]">
