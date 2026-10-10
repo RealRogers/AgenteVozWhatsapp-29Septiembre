@@ -17,6 +17,9 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "Agente WhatsApp",
   description: "Plataforma de inbox conversacional para WhatsApp con IA",
+  // Tell the Dark Reader browser extension to leave this page alone: its DOM
+  // injections (data-darkreader-inline-* attrs) break React hydration.
+  other: { "darkreader-lock": "true" },
 };
 
 export default function RootLayout({
@@ -45,7 +48,11 @@ export default function RootLayout({
         >
           {children}
           <Toaster />
-          {process.env.NODE_ENV === "development" && <Agentation />}
+          {/* Opt-in: "Block page interactions" queda activo y captura los
+              clicks de la página (menús y formularios "no responden").
+              Actívala con NEXT_PUBLIC_AGENTATION=1 solo cuando anotes UI. */}
+          {process.env.NODE_ENV === "development" &&
+            process.env.NEXT_PUBLIC_AGENTATION === "1" && <Agentation />}
         </ThemeProvider>
       </body>
     </html>
