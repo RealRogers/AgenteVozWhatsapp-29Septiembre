@@ -44,8 +44,15 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   ...(process.env.NODE_ENV !== "production" && {
+    allowedDevOrigins: ["127.0.0.1"],
     experimental: {
       mcpServer: true,
+      serverActions: {
+        // The browser preview proxies the app from a 127.0.0.x port, so the
+        // Origin header never matches x-forwarded-host and Server Action POSTs
+        // get CSRF-aborted. `127.0.0.*` covers whatever port it picks.
+        allowedOrigins: ["127.0.0.*"],
+      },
     },
   }),
   headers: async () => [
