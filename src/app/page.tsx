@@ -20,6 +20,7 @@ import {
   WhatsAppFloat,
 } from "@/features/landing";
 import { instrumentSans, montserrat } from "@/features/landing/fonts";
+import { createClient } from "@/lib/supabase/server";
 import "@/features/landing/landing.css";
 
 export const metadata: Metadata = {
@@ -38,15 +39,20 @@ export const viewport: Viewport = {
 
 /**
  * Landing pública de marketing (port de landing-agente-whatsapp.html).
- * El middleware redirige a /inbox a los usuarios con sesión; esta página
- * solo la ven visitantes anónimos.
+ * Los usuarios con sesión también la ven (llegan por el logo del app shell):
+ * por eso el CTA del header cambia según haya sesión o no.
  */
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div
       className={`landing-root ${montserrat.variable} ${instrumentSans.variable}`}
     >
-      <LandingHeader />
+      <LandingHeader loggedIn={!!user} />
       <main id="top">
         <HeroSection />
         <IntegrationsStrip />

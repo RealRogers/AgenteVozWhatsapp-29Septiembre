@@ -12,7 +12,7 @@ const NAV_LINKS = [
   { href: "#faq", label: "Preguntas" },
 ];
 
-export function LandingHeader() {
+export function LandingHeader({ loggedIn }: { loggedIn: boolean }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -80,8 +80,12 @@ export function LandingHeader() {
               {l.label}
             </a>
           ))}
-          <Link className="lx-btn lx-btn-ent" href="/login" onClick={close}>
-            Iniciar sesión
+          <Link
+            className="lx-btn lx-btn-ent"
+            href={loggedIn ? "/inbox" : "/login"}
+            onClick={close}
+          >
+            {loggedIn ? "Ir a la app" : "Iniciar sesión"}
           </Link>
           <a className="lx-btn lx-btn-p" href="#contacto" onClick={close}>
             Agendar demo
