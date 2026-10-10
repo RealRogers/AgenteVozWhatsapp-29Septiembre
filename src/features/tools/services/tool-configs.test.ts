@@ -8,6 +8,7 @@ interface QueueEntry {
 
 let toolConfigsQueue: QueueEntry[] = [];
 let n8nToolsQueue: QueueEntry[] = [];
+let integrationsQueue: QueueEntry[] = [];
 let eventInserts: Array<Record<string, unknown>> = [];
 
 process.env.ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
@@ -31,6 +32,15 @@ const fakeClient = {
           }),
         }),
       };
+    }
+    if (table === "integrations") {
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        maybeSingle: () =>
+          Promise.resolve(integrationsQueue.shift() ?? { data: null }),
+      };
+      return chain;
     }
     if (table === "events") {
       const chain = {
@@ -66,6 +76,7 @@ const { encrypt } = await import("@/shared/lib/crypto");
 function reset() {
   toolConfigsQueue = [{ data: [] }];
   n8nToolsQueue = [{ data: [] }];
+  integrationsQueue = [];
   eventInserts = [];
 }
 
@@ -202,4 +213,88 @@ test("an auth header encrypted for another workspace makes the tool refuse to ru
   });
   assert.equal(result.ok, false);
   assert.match(result.error ?? "", /header de autenticación/);
+});
+
+async function highlevelRow() {
+  const pit = await encrypt("pit-123", "ws_1:highlevel");
+  return {
+    data: {
+      credentials: { highlevel_pit: pit },
+      config: { location_id: "loc_1" },
+      enabled: true,
+    },
+  };
+}
+
+test("an enabled HighLevel tool is hidden from the model while the integration is off", async () => {
+  reset();
+  toolConfigsQueue = [
+    {
+      data: [
+        { tool: { key: "schedule_highlevel" }, enabled: true, config: null },
+        { tool: { key: "list_highlevel_appointments" }, enabled: true, config: null },
+      ],
+    },
+  ];
+  // No integrations row → HighLevel isn't connected.
+  const tools = await getEnabledTools("ws_1");
+  assert.deepEqual(tools, []);
+});
+
+test("an enabled HighLevel tool reaches the model when the integration is connected", async () => {
+  reset();
+  toolConfigsQueue = [
+    { data: [{ tool: { key: "schedule_highlevel" }, enabled: true, config: null }] },
+  ];
+  integrationsQueue = [await highlevelRow()];
+  const tools = await getEnabledTools("ws_1");
+  assert.deepEqual(tools.map((t) => t.name), ["schedule_highlevel"]);
+});
+
+test("non-HighLevel tools are unaffected while HighLevel is off", async () => {
+  reset();
+  toolConfigsQueue = [
+    {
+      data: [
+        { tool: { key: "echo" }, enabled: true, config: null },
+        { tool: { key: "cancel_highlevel" }, enabled: true, config: null },
+      ],
+    },
+  ];
+  const tools = await getEnabledTools("ws_1");
+  assert.deepEqual(tools.map((t) => t.name), ["echo"]);
+});
+
+test("schedule_link with a URL works without HighLevel", async () => {
+  reset();
+  toolConfigsQueue = [
+    {
+      data: [
+        {
+          tool: { key: "schedule_link" },
+          enabled: true,
+          config: { scheduling_link: "https://cal.com/acme/30min" },
+        },
+      ],
+    },
+  ];
+  const tools = await getEnabledTools("ws_1");
+  assert.deepEqual(tools.map((t) => t.name), ["schedule_link"]);
+  assert.deepEqual(eventInserts, []);
+});
+
+test("schedule_link without a URL stays exposed but is flagged once a day", async () => {
+  reset();
+  toolConfigsQueue = [
+    { data: [{ tool: { key: "schedule_link" }, enabled: true, config: {} }] },
+  ];
+  const tools = await getEnabledTools("ws_1");
+  assert.deepEqual(tools.map((t) => t.name), ["schedule_link"]);
+  assert.equal(eventInserts.length, 1);
+  assert.equal(eventInserts[0].type, "tool_misconfigured");
+  assert.equal(eventInserts[0].level, "warn");
+  assert.equal(
+    (eventInserts[0].payload as Record<string, unknown>).tool_key,
+    "schedule_link",
+  );
 });

@@ -322,7 +322,6 @@ export async function syncContactToHL(
 ): Promise<HLSyncResult | null> {
   const cfg = await getHLConfig(workspaceId);
   if (!cfg) {
-    console.warn("[HL] syncContactToHL: not connected for", workspaceId);
     return null;
   }
 
@@ -676,7 +675,6 @@ export async function createHLOpportunity(
 ): Promise<{ id: string } | null> {
   const cfg = await getHLConfig(workspaceId);
   if (!cfg) {
-    console.warn("[HL] createHLOpportunity: not connected for", workspaceId);
     return null;
   }
   if (!cfg.pipelineId || !cfg.pipelineStageId) {
@@ -765,4 +763,17 @@ export async function createHLOpportunity(
     console.error("[HL] createHLOpportunity error:", err);
     return null;
   }
+}
+
+/**
+ * Can this workspace actually talk to HighLevel? True only when the
+ * integration row is enabled AND has a PIT and a location configured — the
+ * same bar getHLConfig sets for every API caller. UI and tool gating should
+ * use this rather than reading integrations.enabled alone: a toggled-on row
+ * without credentials can't do anything.
+ */
+export async function isHighLevelConnected(
+  workspaceId: string,
+): Promise<boolean> {
+  return (await getHLConfig(workspaceId)) !== null;
 }

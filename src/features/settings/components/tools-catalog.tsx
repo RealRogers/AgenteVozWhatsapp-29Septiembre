@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { BETA_NOTE, BETA_TOOLS } from "@/features/tools/lib/beta-tools";
+import { HIGHLEVEL_TOOL_KEYS } from "@/features/tools/lib/hl-tool-keys";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -33,6 +34,8 @@ interface Props {
   /** The viewer's role in this workspace. */
   role: string;
   initialTools: ToolItem[];
+  /** HighLevel is connected — HL tools can actually run for this workspace. */
+  hlEnabled?: boolean;
 }
 
 // Per-tool glyph so each row is scannable at a glance (annotation #2).
@@ -64,7 +67,12 @@ const sensitivityConfig: Record<
   },
 };
 
-export function ToolsCatalog({ workspaceId, role, initialTools }: Props) {
+export function ToolsCatalog({
+  workspaceId,
+  role,
+  initialTools,
+  hlEnabled = false,
+}: Props) {
   // Toggling or configuring a tool needs manager (the tools API); agents and
   // viewers see the catalog read-only instead of controls that would fail.
   const canManage = role === "admin" || role === "manager";
@@ -156,6 +164,12 @@ export function ToolsCatalog({ workspaceId, role, initialTools }: Props) {
           const isOpen = expanded === tool.id;
           const ToolIcon = TOOL_ICONS[tool.key] ?? Wrench;
           const BadgeIcon = config.Icon;
+          // A HighLevel tool without the integration can't run — the runtime
+          // leaves it out of the model's ToolSet — so the toggle stays off.
+          const requiresHL = HIGHLEVEL_TOOL_KEYS.has(tool.key);
+          const hlBlocked = requiresHL && !hlEnabled;
+          const isScheduleLinkFallback =
+            !hlEnabled && tool.key === "schedule_link";
 
           return (
             <li
@@ -195,6 +209,22 @@ export function ToolsCatalog({ workspaceId, role, initialTools }: Props) {
                         Beta
                       </Badge>
                     )}
+                    {hlBlocked && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs font-normal text-muted-foreground border-muted-foreground/30"
+                      >
+                        Requiere HighLevel
+                      </Badge>
+                    )}
+                    {isScheduleLinkFallback && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs font-normal text-blue-400 border-blue-400/30"
+                      >
+                        Alternativa sin HighLevel
+                      </Badge>
+                    )}
                   </div>
                   {tool.description && (
                     <p className="text-xs text-muted-foreground line-clamp-2">
@@ -203,6 +233,11 @@ export function ToolsCatalog({ workspaceId, role, initialTools }: Props) {
                   )}
                   {BETA_TOOLS.has(tool.key) && (
                     <p className="text-xs text-purple-400/90">{BETA_NOTE}</p>
+                  )}
+                  {hlBlocked && (
+                    <p className="text-xs text-muted-foreground">
+                      Conéctala en Integraciones → HighLevel para activarla.
+                    </p>
                   )}
                   {configurable && (
                     <button
@@ -227,7 +262,7 @@ export function ToolsCatalog({ workspaceId, role, initialTools }: Props) {
                 <Switch
                   checked={tool.enabled}
                   onCheckedChange={() => handleToggle(tool)}
-                  disabled={!canManage || isToggling}
+                  disabled={!canManage || isToggling || hlBlocked}
                   aria-label={`${tool.enabled ? "Desactivar" : "Activar"} ${tool.name}`}
                 />
               </div>

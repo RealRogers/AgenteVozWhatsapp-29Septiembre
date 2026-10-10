@@ -28,12 +28,14 @@ mock.module("@/lib/supabase/server.ts", {
 // ── ./highlevel-client ──────────────────────────────────────────────────────
 let syncCalls: Array<[string, string]> = [];
 let syncResult: Record<string, unknown> | null = { hl_id: "hl_1" };
+let hlConnected = true;
 mock.module("./highlevel-client.ts", {
   exports: {
     syncContactToHL: async (workspaceId: string, contactId: string) => {
       syncCalls.push([workspaceId, contactId]);
       return syncResult;
     },
+    isHighLevelConnected: async () => hlConnected,
   },
 });
 
@@ -44,6 +46,7 @@ beforeEach(() => {
   checkCalls = [];
   syncCalls = [];
   syncResult = { hl_id: "hl_1" };
+  hlConnected = true;
 });
 
 test("syncContactHL syncs when the caller is an agent of the workspace", async () => {
@@ -68,4 +71,14 @@ test("syncContactHL doesn't report success when another contact already holds th
   const result = await syncContactHL("ct_1", "ws_1");
   assert.equal(result.ok, false);
   assert.match(String((result as { error?: string }).error), /misma persona/);
+});
+
+test("syncContactHL says HighLevel isn't connected instead of a generic failure", async () => {
+  hlConnected = false;
+
+  const result = await syncContactHL("ct_1", "ws_1");
+
+  assert.equal(result.ok, false);
+  assert.match(String((result as { error?: string }).error), /no está conectado/);
+  assert.deepEqual(syncCalls, [], "a disconnected workspace must not trigger a sync");
 });

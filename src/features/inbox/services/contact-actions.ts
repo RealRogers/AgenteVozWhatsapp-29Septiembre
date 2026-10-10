@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { checkWorkspaceMember } from "@/lib/auth/workspace-access";
-import { syncContactToHL } from "./highlevel-client";
+import { isHighLevelConnected, syncContactToHL } from "./highlevel-client";
 import type { ContactRow } from "@/features/inbox/types";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -77,10 +77,13 @@ export async function updateContact(
     workspace_id: string;
   };
 
-  // 4. Fire-and-forget HL sync (do not block UI)
-  syncContactToHL(workspace_id, contactId).catch((err: unknown) => {
-    console.warn("[updateContact] HL sync failed (non-critical):", err);
-  });
+  // 4. Fire-and-forget HL sync (do not block UI) — only when the workspace
+  // actually has HighLevel connected; the local update above already stands.
+  if (await isHighLevelConnected(workspace_id)) {
+    syncContactToHL(workspace_id, contactId).catch((err: unknown) => {
+      console.warn("[updateContact] HL sync failed (non-critical):", err);
+    });
+  }
 
   return { ok: true, data: { id: updatedId } };
 }
@@ -124,6 +127,15 @@ export async function syncContactHL(
   const access = await checkWorkspaceMember(workspaceId, { minRole: "agent" });
   if (!access.ok) {
     return { ok: false, error: "No autorizado" };
+  }
+
+  // "Not connected" is a different answer than "sync failed": the UI can
+  // point at Settings → Integraciones instead of a retry that never works.
+  if (!(await isHighLevelConnected(workspaceId))) {
+    return {
+      ok: false,
+      error: "HighLevel no está conectado en este workspace",
+    };
   }
 
   const result = await syncContactToHL(workspaceId, contactId);

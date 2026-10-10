@@ -267,9 +267,11 @@ function KnockoutRuleRow({
 
 interface Props {
   workspaceId: string;
+  /** HighLevel is connected — enables the "create opportunity" post-action. */
+  hlEnabled: boolean;
 }
 
-export function SetterAdvancedConfig({ workspaceId }: Props) {
+export function SetterAdvancedConfig({ workspaceId, hlEnabled }: Props) {
   const [config, setConfig] = useState<SetterConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -705,8 +707,14 @@ export function SetterAdvancedConfig({ workspaceId }: Props) {
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             {(Object.keys(POST_ACTION_LABELS) as PostActionType[]).map((t) => (
-              <option key={t} value={t}>
-                {POST_ACTION_LABELS[t]}
+              <option
+                key={t}
+                value={t}
+                disabled={t === "create_hl_opportunity" && !hlEnabled}
+              >
+                {t === "create_hl_opportunity" && !hlEnabled
+                  ? `${POST_ACTION_LABELS[t]} (requiere HighLevel)`
+                  : POST_ACTION_LABELS[t]}
               </option>
             ))}
           </select>

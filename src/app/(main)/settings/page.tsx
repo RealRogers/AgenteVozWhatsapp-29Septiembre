@@ -7,6 +7,7 @@ import { SettingsShell } from "@/features/settings/components/settings-shell";
 import { countJudgmentsToday } from "@/features/jev-judge/usage";
 import { readJevUses } from "@/features/jev-judge/uses";
 import { isWhatsAppProvider } from "@/features/inbox/services/whatsapp-provider";
+import { isHighLevelConnected } from "@/features/inbox/services/highlevel-client";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -70,6 +71,8 @@ export default async function SettingsPage() {
   ]);
 
   const initialAgents = await listAgents(svc, workspaceId);
+  // Whether HL tools/post-actions can actually run — gates their UI below.
+  const hlEnabled = await isHighLevelConnected(workspaceId);
   // Jev's settings live in the workspace's active WhatsApp integration
   // (YCloud or Kapso — at most one is enabled).
   const whatsapp = (integrationsData ?? []).find(
@@ -140,6 +143,7 @@ export default async function SettingsPage() {
       teamEmailReady={Boolean(
         process.env.RESEND_API_KEY && process.env.HANDOFF_NOTIFY_FROM,
       )}
+      hlEnabled={hlEnabled}
       jev={{
         enabled: whatsappConfig.jev_enabled === true,
         uses: readJevUses(whatsappConfig),

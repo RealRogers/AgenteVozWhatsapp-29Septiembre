@@ -314,7 +314,10 @@ mock.module("./kb-service.ts", {
 });
 mock.module("./prompt-resolver.ts", { exports: { resolveSystemPrompt: async () => null } });
 mock.module("./prompt-builder.ts", { exports: { buildSystemPrompt: () => "SYSTEM PROMPT" } });
-mock.module("@/features/agents/services/active-agent.ts", { exports: { getActiveAgent: async () => null } });
+let activeAgent: Row | null = null;
+mock.module("@/features/agents/services/active-agent.ts", {
+  exports: { getActiveAgent: async () => activeAgent },
+});
 mock.module("@/features/agents/services/auto-tagging.ts", { exports: { maybeAutoProcess: async () => undefined } });
 mock.module("./business-info.ts", {
   exports: {
@@ -332,12 +335,26 @@ mock.module("./conversation-history.ts", {
     },
   },
 });
-mock.module("./setter.ts", { exports: { getSetterConfig: async () => null, evaluateLead: async () => null } });
+let setterConfig: Row | null = null;
+let setterEval: Row | null = null;
+mock.module("./setter.ts", {
+  exports: {
+    getSetterConfig: async () => setterConfig,
+    evaluateLead: async () => setterEval,
+  },
+});
+let hlConnected = true;
+const createOppCalls: Array<[string, string]> = [];
+let createOppResult: { id: string } | null = null;
 mock.module("./highlevel-client.ts", {
   exports: {
     syncContactToHL: async () => undefined,
-    createHLOpportunity: async () => undefined,
+    createHLOpportunity: async (workspaceId: string, contactId: string) => {
+      createOppCalls.push([workspaceId, contactId]);
+      return createOppResult;
+    },
     hlConfiguredTimeZone: async () => null,
+    isHighLevelConnected: async () => hlConnected,
   },
 });
 
@@ -405,6 +422,12 @@ function reset(meta: Row = {}) {
   dispatchArgs.length = 0;
   generated = { text: "¡Hola!" };
   toolsRun.length = 0;
+  activeAgent = null;
+  setterConfig = null;
+  setterEval = null;
+  hlConnected = true;
+  createOppCalls.length = 0;
+  createOppResult = null;
   kbError = null;
   transitions.length = 0;
   transitionError = null;
@@ -1525,4 +1548,68 @@ test("a retry owing a handoff after a write still tells the team to check the wr
   assert.deepEqual(transitions, [{ to: "handoff_pending", trigger: "tool_unsent:agent_stuck" }]);
   const note = notes().find((n) => (n.meta as Row).reason === "write_tool_unfinished");
   assert.match(String(note?.body), /schedule_highlevel/);
+});
+
+test("a qualified setter lead with HighLevel off skips the opportunity quietly and keeps the local stage", async () => {
+  reset();
+  tables.contacts = [
+    { id: "contact_1", workspace_id: "ws_1", stage: "new", custom_fields: {}, tags: [] },
+  ];
+  activeAgent = { type: "setter", name: "Setter", config: {} };
+  setterConfig = {
+    id: "sc_1",
+    enabled: true,
+    post_action: { type: "create_hl_opportunity" },
+  };
+  setterEval = {
+    score: 80,
+    qualified: true,
+    summary: "listo para cerrar",
+    knocked_out: false,
+    knockout_reason: null,
+  };
+  hlConnected = false;
+
+  const result = await processNextBatch();
+  assert.equal(result.processed, true);
+
+  assert.equal(tables.contacts[0].stage, "qualified", "the local stage is the fallback");
+  assert.deepEqual(createOppCalls, [], "no HighLevel call is attempted");
+  const postAction = (tables.events ?? []).find((e) => e.type === "setter_post_action");
+  assert.ok(postAction, "the skip is logged as a normal post-action event");
+  assert.equal(postAction.level, "info");
+  assert.equal((postAction.payload as Row).skipped, "highlevel_not_connected");
+  assert.equal(
+    (tables.events ?? []).some((e) => e.type === "setter_post_action_failed"),
+    false,
+    "an expected skip is not a failure",
+  );
+});
+
+test("a qualified setter lead with HighLevel on creates the opportunity as before", async () => {
+  reset();
+  tables.contacts = [
+    { id: "contact_1", workspace_id: "ws_1", stage: "new", custom_fields: {}, tags: [] },
+  ];
+  activeAgent = { type: "setter", name: "Setter", config: {} };
+  setterConfig = {
+    id: "sc_1",
+    enabled: true,
+    post_action: { type: "create_hl_opportunity" },
+  };
+  setterEval = {
+    score: 80,
+    qualified: true,
+    summary: "listo para cerrar",
+    knocked_out: false,
+    knockout_reason: null,
+  };
+  createOppResult = { id: "opp_1" };
+
+  const result = await processNextBatch();
+  assert.equal(result.processed, true);
+
+  assert.deepEqual(createOppCalls, [["ws_1", "contact_1"]]);
+  const postAction = (tables.events ?? []).find((e) => e.type === "setter_post_action");
+  assert.equal((postAction?.payload as Row | undefined)?.opportunity_id, "opp_1");
 });

@@ -34,6 +34,8 @@ interface Props {
   jev: JevSettings;
   /** The server can send the team's handoff emails (Resend configured). */
   teamEmailReady?: boolean;
+  /** HighLevel is connected — gates HL tools and the setter post-action. */
+  hlEnabled?: boolean;
 }
 
 export function SettingsShell({
@@ -46,6 +48,7 @@ export function SettingsShell({
   initialAgents = [],
   jev,
   teamEmailReady = false,
+  hlEnabled = false,
 }: Props) {
   const biForForm = initialBusinessInfo as {
     structured: Record<string, unknown>;
@@ -83,6 +86,7 @@ export function SettingsShell({
               jev={jev}
               canManage={role === "admin" || role === "manager"}
               isAdmin={role === "admin"}
+              hlEnabled={hlEnabled}
             />
           </div>
         </TabsContent>
@@ -110,6 +114,7 @@ export function SettingsShell({
               workspaceId={workspaceId}
               role={role}
               initialTools={initialTools}
+              hlEnabled={hlEnabled}
             />
           </div>
         </TabsContent>

@@ -40,6 +40,8 @@ const STAGE_LABELS: Record<Stage, string> = {
 interface CrmPanelProps {
   contact: ContactRow;
   conversationId: string;
+  /** HighLevel is connected for this workspace — shows the Sync button. */
+  hlEnabled: boolean;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -72,6 +74,7 @@ function Initials({ name }: { name: string | null }) {
 export function CrmPanel({
   contact,
   conversationId: _conversationId,
+  hlEnabled,
 }: CrmPanelProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -307,16 +310,18 @@ export function CrmPanel({
           <Save className="h-3.5 w-3.5" />
           {isPending ? "Guardando..." : "Guardar cambios"}
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleSyncHL}
-          disabled={isPending}
-          className="w-full h-7 text-xs gap-1.5"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Sync HighLevel
-        </Button>
+        {hlEnabled && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSyncHL}
+            disabled={isPending}
+            className="w-full h-7 text-xs gap-1.5"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Sync HighLevel
+          </Button>
+        )}
       </div>
 
       {/* Opt-out warning */}

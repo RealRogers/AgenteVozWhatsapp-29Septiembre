@@ -31,6 +31,7 @@ export function AgentsTab({
   jev,
   canManage,
   isAdmin = false,
+  hlEnabled = false,
 }: {
   workspaceId: string;
   initialAgents: AgentDto[];
@@ -38,6 +39,8 @@ export function AgentsTab({
   canManage: boolean;
   /** Only an admin's playground runs write tools (the server decides; this is the note). */
   isAdmin?: boolean;
+  /** HighLevel is connected — forwarded to the agent config sheet. */
+  hlEnabled?: boolean;
 }) {
   const router = useRouter();
   const [agents, setAgents] = useState<AgentDto[]>(() =>
@@ -127,6 +130,7 @@ export function AgentsTab({
           }}
           onSaved={handleSaved}
           isAdmin={isAdmin}
+          hlEnabled={hlEnabled}
         />
       )}
 

@@ -35,7 +35,11 @@ import {
   type ConversationTurn,
 } from "./conversation-history";
 import { getSetterConfig, evaluateLead } from "./setter";
-import { syncContactToHL, createHLOpportunity } from "./highlevel-client";
+import {
+  syncContactToHL,
+  createHLOpportunity,
+  isHighLevelConnected,
+} from "./highlevel-client";
 import { workspaceSchedulingTimeZone } from "./scheduling-timezone";
 import {
   loadWhatsAppSettings,
@@ -1901,9 +1905,10 @@ async function runSetterEvaluation(params: SetterEvalParams): Promise<void> {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // executeSetterPostAction (private)
-// Runs the configured post_action for a qualified lead. Reuses existing
-// executors; create_hl_opportunity is stubbed (logs a pending event) until HL
-// pipeline/stage config exists.
+// Runs the configured post_action for a qualified lead. The lead's local
+// stage is already updated by the caller; HighLevel-dependent actions skip
+// quietly (an info event, not a failure) when the integration is off — a
+// workspace that never connected HL has nothing to fix.
 // ──────────────────────────────────────────────────────────────────────────────
 
 interface PostActionParams {
@@ -1945,8 +1950,10 @@ async function executeSetterPostAction(p: PostActionParams): Promise<void> {
           .from("contacts")
           .update({ tags: merged })
           .eq("id", p.contactId);
-        // Best-effort push to HighLevel (no-op if HL not connected).
-        void syncContactToHL(p.workspaceId, p.contactId);
+        // Best-effort push to HighLevel (skipped entirely when not connected).
+        if (await isHighLevelConnected(p.workspaceId)) {
+          void syncContactToHL(p.workspaceId, p.contactId);
+        }
         break;
       }
 
@@ -1967,7 +1974,23 @@ async function executeSetterPostAction(p: PostActionParams): Promise<void> {
 
       case "create_hl_opportunity": {
         // Creates the opportunity in the workspace's configured HL pipeline/stage.
-        // Returns null when HL isn't connected or pipeline/stage is unconfigured.
+        // When HighLevel isn't connected this isn't a failure — the local
+        // stage already moved to "qualified" and the skip is just noted.
+        if (!(await isHighLevelConnected(p.workspaceId))) {
+          await p.supabase.from("events").insert({
+            type: "setter_post_action",
+            level: "info",
+            workspace_id: p.workspaceId,
+            conversation_id: p.conversationId,
+            payload: {
+              action: "create_hl_opportunity",
+              contact_id: p.contactId,
+              skipped: "highlevel_not_connected",
+            },
+          });
+          break;
+        }
+        // Returns null when pipeline/stage is unconfigured or the call fails.
         const result = await createHLOpportunity(p.workspaceId, p.contactId);
         await p.supabase.from("events").insert({
           type: result ? "setter_post_action" : "setter_post_action_failed",

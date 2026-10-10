@@ -97,8 +97,9 @@ export function TestChatPanel({
       {isAdmin ? (
         <p className="text-xs text-warning">
           Como admin, aquí corren también las herramientas de escritura que estén
-          activas: una cita agendada en la prueba es real (en HighLevel aparece
-          como &ldquo;[Prueba]&rdquo;, en el teléfono que escribas aquí).
+          activas: una cita agendada en la prueba es real (en el calendario
+          conectado aparece como &ldquo;[Prueba]&rdquo;, en el teléfono que
+          escribas aquí).
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">

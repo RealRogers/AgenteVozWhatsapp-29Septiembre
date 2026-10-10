@@ -5,6 +5,7 @@ import { emitEventOncePerDay } from "@/features/inbox/services/daily-events";
 import { buildZodSchema, sensitiveArgKeys } from "../lib/n8n-params-schema";
 import { buildN8nToolRun, type N8nToolRow } from "../lib/n8n-tool-runner";
 import { decryptN8nAuth } from "../lib/n8n-secrets";
+import { HIGHLEVEL_TOOL_KEYS } from "../lib/hl-tool-keys";
 
 function svc() {
   return createSbClient(
@@ -28,13 +29,52 @@ async function getStaticEnabledTools(workspaceId: string): Promise<Tool[]> {
     .eq("workspace_id", workspaceId)
     .eq("enabled", true);
 
+  const rows = (data as ToolConfigRow[] | null) ?? [];
   const enabledKeys = new Set(
-    ((data as ToolConfigRow[] | null) ?? [])
+    rows
       .map((row) => row.tool?.key)
       .filter((k): k is string => typeof k === "string"),
   );
 
-  return registry.list().filter((t) => enabledKeys.has(t.name));
+  // HighLevel tools stay off the LLM's ToolSet while the integration can't
+  // talk (disabled or missing PIT/location): exposing them only buys
+  // "HighLevel no está conectado" errors and wasted turns. One extra lookup,
+  // and only when a HighLevel tool is actually on for the workspace.
+  let hlConnected = true;
+  if ([...enabledKeys].some((key) => HIGHLEVEL_TOOL_KEYS.has(key))) {
+    const { isHighLevelConnected } = await import(
+      "../../inbox/services/highlevel-client"
+    );
+    hlConnected = await isHighLevelConnected(workspaceId);
+  }
+
+  // A schedule_link with no link configured can only answer "no hay link":
+  // still exposed (its error tells the model to say so), but the workspace
+  // hears about the dead toggle once a day instead of per conversation.
+  if (enabledKeys.has("schedule_link")) {
+    const row = rows.find((r) => r.tool?.key === "schedule_link");
+    const link =
+      typeof row?.config?.scheduling_link === "string"
+        ? row.config.scheduling_link.trim()
+        : "";
+    if (!link) {
+      await emitEventOncePerDay(
+        supabase,
+        workspaceId,
+        "tool_misconfigured",
+        "warn",
+        { tool_key: "schedule_link", reason: "missing scheduling_link" },
+      );
+    }
+  }
+
+  return registry
+    .list()
+    .filter(
+      (t) =>
+        enabledKeys.has(t.name) &&
+        (hlConnected || !HIGHLEVEL_TOOL_KEYS.has(t.name)),
+    );
 }
 
 // The registry's external timeout (registry.ts `runWithTimeout`) races

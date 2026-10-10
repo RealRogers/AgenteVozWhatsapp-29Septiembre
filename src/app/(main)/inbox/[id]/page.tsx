@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { InboxLayout } from "@/features/inbox/components/inbox-layout";
 import { ChatThread } from "@/features/inbox/components/chat-thread";
+import { isHighLevelConnected } from "@/features/inbox/services/highlevel-client";
 import type {
   ConversationWithContact,
   ConversationRow,
@@ -72,6 +73,14 @@ export default async function InboxDetailPage({ params }: PageProps) {
   // 5. Fetch sidebar conversations (the conversation's workspace, for InboxLayout)
   const workspaceId = convWithContact.workspace_id;
   let sidebarConversations: ConversationWithContact[] = [];
+
+  // Whether the CRM panel offers "Sync HighLevel". Read through the service
+  // client inside isHighLevelConnected: the integrations SELECT policy is
+  // admin/manager, so a session-scoped read would say "off" for agents —
+  // who are exactly the role allowed to trigger the sync.
+  const hlEnabled = workspaceId
+    ? await isHighLevelConnected(workspaceId)
+    : false;
 
   if (workspaceId) {
     const { data: conversations } = await supabase
@@ -144,6 +153,7 @@ export default async function InboxDetailPage({ params }: PageProps) {
         initialMessages={messages}
         currentUserId={user.id}
         role={role}
+        hlEnabled={hlEnabled}
       />
     </InboxLayout>
   );

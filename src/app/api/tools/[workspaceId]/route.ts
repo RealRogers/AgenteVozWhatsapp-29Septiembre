@@ -6,6 +6,8 @@ import { createClient as createSbClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { configSchemaForTool } from "@/features/tools/lib/tool-config";
+import { HIGHLEVEL_TOOL_KEYS } from "@/features/tools/lib/hl-tool-keys";
+import { isHighLevelConnected } from "@/features/inbox/services/highlevel-client";
 
 function svc() {
   return createSbClient(
@@ -120,6 +122,21 @@ export async function PATCH(
   }
 
   const { toolKey, enabled, config } = parsed.data;
+
+  // Enabling a HighLevel tool while the integration can't talk leaves a dead
+  // toggle (the runtime drops it from the model's ToolSet anyway): refuse it
+  // here so the mistake is visible instead of silent.
+  if (enabled === true && HIGHLEVEL_TOOL_KEYS.has(toolKey)) {
+    if (!(await isHighLevelConnected(workspaceId))) {
+      return NextResponse.json(
+        {
+          error:
+            `"${toolKey}" necesita HighLevel: conéctala primero en Integraciones → HighLevel.`,
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   // Validate the config against the tool's schema (if it has one).
   let validatedConfig: Record<string, unknown> | undefined;

@@ -49,6 +49,8 @@ interface ChatThreadProps {
   initialMessages: MessageRow[];
   currentUserId: string;
   role?: WorkspaceRole;
+  /** HighLevel is connected for this workspace — CRM panel offers Sync. */
+  hlEnabled: boolean;
 }
 
 // WhatsApp's per-kind caps; documents stop at the bucket's 50MB ceiling.
@@ -88,6 +90,7 @@ export function ChatThread({
   initialMessages,
   currentUserId,
   role = "agent",
+  hlEnabled,
 }: ChatThreadProps) {
   const messages = useRealtimeMessages(conversation.id, initialMessages);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -680,6 +683,7 @@ export function ChatThread({
         <CrmPanel
           contact={conversation.contact}
           conversationId={conversation.id}
+          hlEnabled={hlEnabled}
         />
       )}
 

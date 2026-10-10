@@ -40,6 +40,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onSaved: (agent: Partial<AgentDto> & { id: string }) => void;
   isAdmin?: boolean;
+  /** HighLevel is connected — gates the setter's opportunity post-action. */
+  hlEnabled?: boolean;
 }
 
 export function AgentConfigSheet({
@@ -49,6 +51,7 @@ export function AgentConfigSheet({
   onOpenChange,
   onSaved,
   isAdmin = false,
+  hlEnabled = false,
 }: Props) {
   const meta = AGENT_TYPE_META[agent.type];
   const [name, setName] = useState(agent.name);
@@ -268,7 +271,10 @@ export function AgentConfigSheet({
                   knockout y scoring antes del handoff.
                 </p>
               </div>
-              <SetterAdvancedConfig workspaceId={workspaceId} />
+              <SetterAdvancedConfig
+                workspaceId={workspaceId}
+                hlEnabled={hlEnabled}
+              />
             </TabsContent>
           )}
 
