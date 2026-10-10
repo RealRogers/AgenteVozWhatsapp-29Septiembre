@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  HUMAN_TAKEOVER_MESSAGE,
   VOICE_BAR_HEIGHTS,
   clientDelay,
   conversations,
@@ -145,6 +146,12 @@ test("renderConversationMessages sella en secuencia, salta system y enciende voi
   assert.equal(rendered[2].voiceLit, undefined);
   // ids estables y únicos
   assert.deepEqual(rendered.map((m) => m.id), [0, 1, 2]);
+});
+
+test("HUMAN_TAKEOVER_MESSAGE es una respuesta humana con autor", () => {
+  assert.equal(HUMAN_TAKEOVER_MESSAGE.kind, "human");
+  assert.ok(HUMAN_TAKEOVER_MESSAGE.who);
+  assertScriptIntegrity([HUMAN_TAKEOVER_MESSAGE], "HUMAN_TAKEOVER_MESSAGE");
 });
 
 test("switchResult reproduce las transiciones del HTML", () => {

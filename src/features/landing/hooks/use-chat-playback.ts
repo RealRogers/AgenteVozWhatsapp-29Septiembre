@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  HUMAN_REPLY_START_MS,
+  HUMAN_TAKEOVER_MESSAGE,
   VOICE_BAR_HEIGHTS,
   VOICE_BAR_MS,
   clientDelay,
   formatStamp,
   isSwitchEvent,
+  minutesOf,
   switchResult,
   typingDelay,
   type ChatEvent,
@@ -69,6 +72,17 @@ function prefersReducedMotion(): boolean {
   );
 }
 
+/** Sello "HH:MM" para la respuesta del humano al tomar el chat: +1 min
+ * sobre el último mensaje con hora (la cadena está pausada; no hay `clock`
+ * corriendo, así que se deriva del hilo ya renderizado). */
+function stampAfterLast(
+  msgs: RenderedMessage[],
+  fallbackMinutes: number,
+): string {
+  const lastTime = msgs.findLast((m) => m.time)?.time;
+  return formatStamp(lastTime ? minutesOf(lastTime) + 1 : fallbackMinutes);
+}
+
 /**
  * Motor de reproducción de las conversaciones de la landing.
  * Port del play()/add()/typing()/bars() del HTML a estado React:
@@ -84,6 +98,9 @@ export function useChatPlayback(startMinutes: number) {
   const [state, setState] = useState<PlaybackState>(IDLE);
   const pendingTimerRef = useRef<PendingTimer | null>(null);
   const pendingIntervalRef = useRef<PendingInterval | null>(null);
+  /** Timeout del "humano escribiendo/responde" tras un handoff manual: es
+   * independiente de la cadena pausada por "switch" (esa congela la IA). */
+  const humanTimerRef = useRef<number | null>(null);
   const pauseReasonsRef = useRef<Set<string>>(new Set());
   const msgIdRef = useRef(0);
   const genRef = useRef(0);
@@ -122,6 +139,13 @@ export function useChatPlayback(startMinutes: number) {
     [armTimer],
   );
 
+  const clearHumanTimer = useCallback(() => {
+    if (humanTimerRef.current !== null) {
+      window.clearTimeout(humanTimerRef.current);
+      humanTimerRef.current = null;
+    }
+  }, []);
+
   const clearAll = useCallback(() => {
     const t = pendingTimerRef.current;
     if (t) window.clearTimeout(t.id);
@@ -129,7 +153,8 @@ export function useChatPlayback(startMinutes: number) {
     if (iv) window.clearInterval(iv.id);
     pendingTimerRef.current = null;
     pendingIntervalRef.current = null;
-  }, []);
+    clearHumanTimer();
+  }, [clearHumanTimer]);
 
   useEffect(() => clearAll, [clearAll]);
 
@@ -141,30 +166,75 @@ export function useChatPlayback(startMinutes: number) {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [pause, resume]);
 
+  /** Tras la nota de handoff muestra al humano tecleando y luego su burbuja,
+   * igual que los handoffs del guion. Usa su propio timer: la cadena del
+   * guion sigue pausada por "switch". Si la IA se reactiva o arranca otra
+   * corrida antes de tiempo, el guard de `aiActive` descarta el paso. */
+  const scheduleHumanReply = useCallback(() => {
+    const who = HUMAN_TAKEOVER_MESSAGE.who ?? "Tú";
+    humanTimerRef.current = window.setTimeout(() => {
+      setState((s) =>
+        s.aiActive ? s : { ...s, typing: { who, kind: "human" } },
+      );
+      humanTimerRef.current = window.setTimeout(() => {
+        humanTimerRef.current = null;
+        setState((s) =>
+          s.aiActive
+            ? s
+            : {
+                ...s,
+                typing: null,
+                messages: [
+                  ...s.messages,
+                  {
+                    id: ++msgIdRef.current,
+                    ...HUMAN_TAKEOVER_MESSAGE,
+                    time: stampAfterLast(s.messages, startMinutes),
+                  },
+                ],
+              },
+        );
+      }, typingDelay(HUMAN_TAKEOVER_MESSAGE));
+    }, HUMAN_REPLY_START_MS);
+  }, [startMinutes]);
+
   /** Pausa/reanuda la reproducción como lo haría el handoff real: cuando el
    * humano toma el chat la IA deja de responder (la cadena se congela), y al
-   * reactivarla continúa donde quedó. Deja la nota system en el hilo. */
+   * reactivarla continúa donde quedó. Deja la nota system en el hilo y, si el
+   * cambio es a humano, muestra al humano respondiendo para que el cambio se
+   * vea en el chat. */
   const setAiActive = useCallback(
     (next: boolean) => {
       if (next) resume("switch");
       else pause("switch");
+      clearHumanTimer();
       setState((s) => {
         if (s.aiActive === next) return s;
         const { notice } = switchResult(s.aiActive ? "ia" : "human");
+        const messages: RenderedMessage[] = [
+          ...s.messages,
+          { id: ++msgIdRef.current, kind: "system", text: notice },
+        ];
+        if (!next && prefersReducedMotion()) {
+          messages.push({
+            id: ++msgIdRef.current,
+            ...HUMAN_TAKEOVER_MESSAGE,
+            time: stampAfterLast(messages, startMinutes),
+          });
+        }
         return {
           ...s,
           aiActive: next,
-          // Si el humano toma el chat a media escritura, la IA deja de teclear
-          // de inmediato — no dejamos un "escribiendo…" congelado.
-          ...(next ? {} : { typing: null, status: "en línea" }),
-          messages: [
-            ...s.messages,
-            { id: ++msgIdRef.current, kind: "system", text: notice },
-          ],
+          // No dejamos un "escribiendo…" congelado: la IA suelta el teclado al
+          // instante y un "Tú escribiendo" viejo tampoco sobrevive al reactivar.
+          typing: null,
+          ...(next ? {} : { status: "en línea" }),
+          messages,
         };
       });
+      if (!next && !prefersReducedMotion()) scheduleHumanReply();
     },
-    [pause, resume],
+    [pause, resume, clearHumanTimer, scheduleHumanReply, startMinutes],
   );
 
   const play = useCallback(

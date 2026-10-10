@@ -253,6 +253,16 @@ export function switchResult(from: Responder): { to: Responder; notice: string }
   return { to: "human", notice: "Tomaste el chat. IA pausada" };
 }
 
+/** Pausa entre la nota de handoff y el "escribiendo" del humano (ms). */
+export const HUMAN_REPLY_START_MS = 700;
+
+/** Respuesta que postea el humano cuando el visitante toma el chat. */
+export const HUMAN_TAKEOVER_MESSAGE: ChatMessage = {
+  kind: "human",
+  who: "Tú",
+  text: "Hola, ya te atiendo yo.",
+};
+
 export const conversations: Conversation[] = [
   {
     name: "Ana Torres",
