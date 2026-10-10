@@ -706,6 +706,11 @@ html {
   font-weight: 600;
   min-height: 1.5em;
 }
+.lx-err {
+  color: #e5484d;
+  font-weight: 600;
+  min-height: 1.5em;
+}
 
 /* ── Sección final (fondo cyan) ──────────────────────────────────────────── */
 .lx-final {
@@ -726,6 +731,9 @@ html {
 }
 .lx-final .lx-ok {
   color: var(--lx-ink);
+}
+.lx-final .lx-err {
+  color: #8c1d18;
 }
 .lx-final :focus-visible {
   outline-color: var(--lx-ink);
