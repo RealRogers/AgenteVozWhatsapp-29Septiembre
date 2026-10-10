@@ -45,6 +45,7 @@ export function HeroSection() {
             statusText={playback.status}
             switchLabel={playback.aiActive ? "IA activa" : "Humano al mando"}
             switchOff={!playback.aiActive}
+            onToggleSwitch={() => playback.setAiActive(!playback.aiActive)}
             messages={playback.messages}
             typing={playback.typing}
             groupAriaLabel="Ejemplo de conversación de WhatsApp entre un cliente, la IA y una persona"

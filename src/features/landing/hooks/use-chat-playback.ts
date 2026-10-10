@@ -7,6 +7,7 @@ import {
   clientDelay,
   formatStamp,
   isSwitchEvent,
+  switchResult,
   typingDelay,
   type ChatEvent,
   type ChatMessage,
@@ -140,9 +141,38 @@ export function useChatPlayback(startMinutes: number) {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [pause, resume]);
 
+  /** Pausa/reanuda la reproducción como lo haría el handoff real: cuando el
+   * humano toma el chat la IA deja de responder (la cadena se congela), y al
+   * reactivarla continúa donde quedó. Deja la nota system en el hilo. */
+  const setAiActive = useCallback(
+    (next: boolean) => {
+      if (next) resume("switch");
+      else pause("switch");
+      setState((s) => {
+        if (s.aiActive === next) return s;
+        const { notice } = switchResult(s.aiActive ? "ia" : "human");
+        return {
+          ...s,
+          aiActive: next,
+          // Si el humano toma el chat a media escritura, la IA deja de teclear
+          // de inmediato — no dejamos un "escribiendo…" congelado.
+          ...(next ? {} : { typing: null, status: "en línea" }),
+          messages: [
+            ...s.messages,
+            { id: ++msgIdRef.current, kind: "system", text: notice },
+          ],
+        };
+      });
+    },
+    [pause, resume],
+  );
+
   const play = useCallback(
     (script: ChatEvent[], onDone?: () => void) => {
       clearAll();
+      // Una corrida nueva arranca con la IA al mando: una pausa por switch de
+      // la corrida anterior no debe congelar esta.
+      pauseReasonsRef.current.delete("switch");
       const gen = ++genRef.current;
       let clock = startMinutes;
       const nextId = () => ++msgIdRef.current;
@@ -300,5 +330,5 @@ export function useChatPlayback(startMinutes: number) {
     [startMinutes, clearAll, armTimer],
   );
 
-  return { ...state, play, pause, resume };
+  return { ...state, play, pause, resume, setAiActive };
 }

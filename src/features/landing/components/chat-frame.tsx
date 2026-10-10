@@ -156,7 +156,7 @@ export function ChatFrame({
             className="lx-switch"
             role="switch"
             aria-checked={!switchOff}
-            aria-label="IA activa en esta conversación"
+            aria-label={switchLabel}
             data-off={switchOff || undefined}
             onClick={onToggleSwitch}
           >
@@ -166,7 +166,7 @@ export function ChatFrame({
         ) : (
           <div className="lx-switch" data-off={switchOff || undefined}>
             <span></span>
-            <label>{switchLabel}</label>
+            <i className="lx-switch-label">{switchLabel}</i>
           </div>
         )}
       </div>

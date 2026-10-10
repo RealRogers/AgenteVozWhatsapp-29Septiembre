@@ -55,6 +55,7 @@ export function DemoSection() {
             statusText={playback.status}
             switchLabel={playback.aiActive ? "IA activa" : "Humano al mando"}
             switchOff={!playback.aiActive}
+            onToggleSwitch={() => playback.setAiActive(!playback.aiActive)}
             messages={playback.messages}
             typing={playback.typing}
             groupAriaLabel="Demo: conversación de WhatsApp con el agente"
